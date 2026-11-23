@@ -1,0 +1,14 @@
+{
+  "meta": {
+    "title": "AskDB — ask your database in plain language",
+    "description": "Ask questions about a PostgreSQL database in Arabic or English and get a table, a chart, and a short summary."
+  },
+  "home": {
+    "badge": "Read-only. Three safety layers.",
+    "title": "Ask your database in plain language",
+    "subtitle": "Type a question in Arabic or English. Get back a table, a chart, and a short summary in seconds — no SQL needed.",
+    "tryGuest": "Try as guest",
+    "comingSoon": "Coming soon",
+    "switchLanguage": "العربية"
+  }
+}

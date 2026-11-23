@@ -1,0 +1,10 @@
+pnpm-lock.yaml
+node_modules
+.next
+.turbo
+coverage
+dist
+playwright-report
+test-results
+packages/db/drizzle/meta
+PROJECT_PLAN.md

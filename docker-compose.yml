@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: askdb-postgres
+    environment:
+      POSTGRES_USER: askdb
+      POSTGRES_PASSWORD: askdb
+      POSTGRES_DB: askdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - askdb_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U askdb -d askdb"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  askdb_pg_data:
