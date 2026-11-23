@@ -34,7 +34,7 @@ pnpm db:up          # local Postgres on port 5433 (Docker)
 pnpm db:migrate
 pnpm dev            # http://localhost:3000
 pnpm lint && pnpm typecheck && pnpm test
-pnpm test:e2e       # builds and starts the app on port 3100
+pnpm test:e2e       # builds and starts the app on port 3200
 pnpm db:generate --name <change>   # after editing packages/db/src/schema.ts
 ```
 

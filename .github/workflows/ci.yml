@@ -57,6 +57,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # A throwaway signing secret for this run only; never stored anywhere.
+      - name: Generate test auth secret
+        run: echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Migrate database
         run: pnpm db:migrate
 
