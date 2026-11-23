@@ -8,7 +8,44 @@
     "title": "Ask your database in plain language",
     "subtitle": "Type a question in Arabic or English. Get back a table, a chart, and a short summary in seconds — no SQL needed.",
     "tryGuest": "Try as guest",
-    "comingSoon": "Coming soon",
-    "switchLanguage": "العربية"
+    "switchLanguage": "العربية",
+    "signIn": "Sign in",
+    "openApp": "Open app"
+  },
+  "auth": {
+    "title": "Sign in to AskDB",
+    "subtitle": "Use your GitHub account, or look around first with a guest account on sample data.",
+    "github": "Continue with GitHub",
+    "guest": "Try as guest",
+    "guestNote": "Guest accounts use the Northwind sample database and are deleted after 7 days.",
+    "githubUnavailable": "GitHub sign-in is not configured on this server.",
+    "working": "Signing in…",
+    "error": "Sign-in failed. Please try again.",
+    "backHome": "Back to home"
+  },
+  "app": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "profile": "Profile"
+    },
+    "loading": "Loading…",
+    "welcome": "Welcome, {name}",
+    "guestBadge": "Guest mode",
+    "databaseHeading": "Your database",
+    "northwindName": "Northwind (sample data)",
+    "northwindBody": "A classic sales database: customers, orders, products, suppliers, and employees. Ask questions about it in Arabic or English.",
+    "noConnectionsTitle": "No databases yet",
+    "noConnectionsBody": "Connecting your own PostgreSQL database is coming soon."
+  },
+  "profile": {
+    "title": "Profile",
+    "name": "Name",
+    "email": "Email",
+    "accountType": "Account type",
+    "typeGuest": "Guest (demo)",
+    "typeUser": "GitHub account",
+    "guestExpiry": "Guest accounts and all their data are deleted 7 days after creation.",
+    "signOut": "Sign out",
+    "signingOut": "Signing out…"
   }
 }
