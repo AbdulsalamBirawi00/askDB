@@ -686,7 +686,7 @@ POST /v1/providers
 
 ## 8. Progress checklist
 
-- [ ] Stage 0 — Project setup
+- [x] Stage 0 — Project setup (done 2026-11-23: T0.1–T0.3 automated in CI; T0.4 shown by PR #1, blocked then unblocked; T0.5 shown by PR #2's Vercel preview; live at https://askdb-pi.vercel.app)
 - [ ] Stage 1 — Authentication
 - [ ] Stage 2 — Database connection and schema introspection
 - [ ] Stage 3 — SQL generation and safe execution
