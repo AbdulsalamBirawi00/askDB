@@ -689,7 +689,7 @@ POST /v1/providers
 - [x] Stage 0 — Project setup (done 2026-11-23: T0.1–T0.3 automated in CI; T0.4 shown by PR #1, blocked then unblocked; T0.5 shown by PR #2's Vercel preview; live at https://askdb-pi.vercel.app)
 - [x] Stage 1 — Authentication (done 2026-11-23: T1.1–T1.6 automated in CI and passing against production; PR #4. GitHub sign-in waits on the OAuth app; guests link to Northwind by role until Stage 2)
 - [x] Stage 2 — Database connection and schema introspection (done 2026-11-24: T2.1–T2.9 automated in CI; PR #6; Northwind demo live on Neon project askdb-northwind)
-- [ ] Stage 3 — SQL generation and safe execution
+- [x] Stage 3 — SQL generation and safe execution (done 2026-11-24: T3.2–T3.8, T3.10, T3.13, T3.14 automated in CI; T3.1, T3.9, T3.11, T3.12 pass against real Gemini via `test:model`; eval 10/10; PR #8. Gemini only (no Groq), with a gemini-3.5-flash-lite fallback, PR #9)
 - [ ] Stage 4 — Results, charts, and auto-repair
 - [ ] Stage 5 — History and follow-up questions
 - [ ] Stage 6 — Saved dashboards
