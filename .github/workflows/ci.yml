@@ -44,6 +44,8 @@ jobs:
           --health-retries 20
     env:
       DATABASE_URL: postgres://askdb:askdb@localhost:5432/askdb
+      # Tests connect to the Postgres service on localhost.
+      ALLOW_PRIVATE_DB_HOSTS: "true"
       CI: true
     steps:
       - uses: actions/checkout@v4
@@ -57,12 +59,20 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # A throwaway signing secret for this run only; never stored anywhere.
-      - name: Generate test auth secret
-        run: echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+      # Throwaway secrets for this run only; never stored anywhere.
+      - name: Generate test secrets
+        run: |
+          echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          echo "CONNECTION_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          echo "NORTHWIND_READONLY_PASSWORD=$(openssl rand -hex 16)" >> "$GITHUB_ENV"
 
       - name: Migrate database
         run: pnpm db:migrate
+
+      - name: Load Northwind and seed the demo connection
+        run: |
+          pnpm db:northwind
+          pnpm db:seed-demo
 
       - name: Format check
         run: pnpm format:check

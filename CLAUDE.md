@@ -32,6 +32,8 @@ packages/db/      Drizzle schema + migrations for the app DB
 pnpm install
 pnpm db:up          # local Postgres on port 5433 (Docker)
 pnpm db:migrate
+pnpm db:northwind   # load the Northwind sample + readonly_demo role (local "northwind" DB)
+pnpm db:seed-demo   # create/refresh the shared Northwind demo connection
 pnpm dev            # http://localhost:3000
 pnpm lint && pnpm typecheck && pnpm test
 pnpm test:e2e       # builds and starts the app on port 3200

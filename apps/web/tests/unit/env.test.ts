@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 import { EnvError, parseEnv } from "@/env";
 
 const SECRET = "x".repeat(32);
-const valid = { DATABASE_URL: "postgres://u:p@localhost:5432/db", BETTER_AUTH_SECRET: SECRET };
+const KEY = Buffer.alloc(32, 7).toString("base64");
+const valid = {
+  DATABASE_URL: "postgres://u:p@localhost:5432/db",
+  BETTER_AUTH_SECRET: SECRET,
+  CONNECTION_ENCRYPTION_KEY: KEY,
+};
 
 function issuesOf(source: Record<string, string | undefined>): string[] {
   try {
@@ -17,8 +22,9 @@ function issuesOf(source: Record<string, string | undefined>): string[] {
 
 describe("parseEnv", () => {
   it("T0.3 fails fast with a message naming DATABASE_URL when it is missing", () => {
-    expect(() => parseEnv({ BETTER_AUTH_SECRET: SECRET })).toThrow(EnvError);
-    expect(() => parseEnv({ BETTER_AUTH_SECRET: SECRET })).toThrow(/DATABASE_URL is required/);
+    const missing = { ...valid, DATABASE_URL: undefined };
+    expect(() => parseEnv(missing)).toThrow(EnvError);
+    expect(() => parseEnv(missing)).toThrow(/DATABASE_URL is required/);
   });
 
   it("reports only 'is required' for an empty DATABASE_URL", () => {
@@ -41,7 +47,7 @@ describe("parseEnv", () => {
   });
 
   it("requires BETTER_AUTH_SECRET of at least 32 characters", () => {
-    expect(issuesOf({ DATABASE_URL: valid.DATABASE_URL })).toEqual([
+    expect(issuesOf({ ...valid, BETTER_AUTH_SECRET: undefined })).toEqual([
       "BETTER_AUTH_SECRET is required",
     ]);
     expect(issuesOf({ ...valid, BETTER_AUTH_SECRET: "short" })).toEqual([
@@ -62,6 +68,22 @@ describe("parseEnv", () => {
     const env = parseEnv({ ...valid, BETTER_AUTH_URL: "", CRON_SECRET: "", GITHUB_CLIENT_ID: "" });
     expect(env.BETTER_AUTH_URL).toBeUndefined();
     expect(env.CRON_SECRET).toBeUndefined();
+  });
+
+  it("requires a 32-byte base64 CONNECTION_ENCRYPTION_KEY", () => {
+    expect(issuesOf({ ...valid, CONNECTION_ENCRYPTION_KEY: undefined })).toEqual([
+      "CONNECTION_ENCRYPTION_KEY is required",
+    ]);
+    expect(issuesOf({ ...valid, CONNECTION_ENCRYPTION_KEY: "c2hvcnQ=" })).toEqual([
+      "CONNECTION_ENCRYPTION_KEY must be 32 bytes, base64-encoded",
+    ]);
+  });
+
+  it("private DB hosts are refused unless ALLOW_PRIVATE_DB_HOSTS is exactly true", () => {
+    expect(parseEnv(valid).ALLOW_PRIVATE_DB_HOSTS).toBe(false);
+    expect(parseEnv({ ...valid, ALLOW_PRIVATE_DB_HOSTS: "true" }).ALLOW_PRIVATE_DB_HOSTS).toBe(
+      true,
+    );
   });
 
   it("accepts a valid environment and defaults NODE_ENV", () => {

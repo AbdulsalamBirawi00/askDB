@@ -24,10 +24,21 @@ export async function pingDb(db: Database): Promise<void> {
 export { schema };
 export { deleteStaleGuests, GUEST_MAX_AGE_DAYS } from "./cleanup";
 export {
+  createConnection,
   deleteOwnedConnection,
-  getOwnedConnection,
+  getConnectionSchema,
+  getOwnedConnectionSecret,
+  getVisibleConnection,
   listConnections,
+  refreshConnectionSchema,
+  updateSchemaColumn,
+  updateSchemaTable,
+  type InspectionInput,
   type PublicConnection,
+  type SchemaColumnView,
+  type SchemaPatch,
+  type SchemaTableView,
 } from "./connections";
+export { DEMO_OWNER_ID, ensureDemoOwner } from "./demo";
 // Query operators from the same drizzle-orm copy as the schema (apps must not import a second one).
 export { and, eq, inArray, lt, sql } from "drizzle-orm";
