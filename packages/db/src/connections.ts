@@ -96,6 +96,23 @@ export async function getOwnedConnectionSecret(
   return row ?? null;
 }
 
+/**
+ * The encrypted URL of a connection the user may query: their own, or the shared demo.
+ * Server-side only (to execute questions). Never returned to clients.
+ */
+export async function getVisibleConnectionSecret(
+  db: Database,
+  id: string,
+  userId: string,
+): Promise<{ id: string; encryptedUrl: string } | null> {
+  const [row] = await db
+    .select({ id: connections.id, encryptedUrl: connections.encryptedUrl })
+    .from(connections)
+    .where(visible(id, userId))
+    .limit(1);
+  return row ?? null;
+}
+
 /** Returns false when there was nothing of the user's to delete. */
 export async function deleteOwnedConnection(
   db: Database,

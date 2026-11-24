@@ -15,7 +15,7 @@ type Params = PageProps<"/[lang]/app/connections/[id]">["params"];
 async function ConnectionSchema({ params }: { params: Params }) {
   const { lang, id } = await params;
   if (!isLocale(lang)) notFound();
-  const [{ connections: labels }, user] = await Promise.all([
+  const [{ connections: labels, ask }, user] = await Promise.all([
     getDictionary(lang),
     requireUser(lang),
   ]);
@@ -29,12 +29,21 @@ async function ConnectionSchema({ params }: { params: Params }) {
 
   return (
     <>
-      <Link
-        href={`/${lang}/app`}
-        className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-      >
-        {labels.back}
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href={`/${lang}/app`}
+          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          {labels.back}
+        </Link>
+        <Link
+          href={`/${lang}/app/connections/${connection.id}/ask`}
+          data-testid="ask-link"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          {ask.askLink}
+        </Link>
+      </div>
       <SchemaEditor
         lang={lang}
         labels={labels}
