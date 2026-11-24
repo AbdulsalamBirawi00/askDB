@@ -10,9 +10,11 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "seed:demo": "tsx scripts/seed-demo.mts"
   },
   "dependencies": {
+    "@askdb/core": "workspace:*",
     "@askdb/db": "workspace:*",
     "@base-ui/react": "^1.9.0",
     "better-auth": "1.7.27",
@@ -36,7 +38,9 @@
     "@vitest/coverage-v8": "5.1.1",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "postgres": "4.1.1",
     "tailwindcss": "4.3.3",
+    "tsx": "^4.23.15",
     "typescript": "5.9.3",
     "vitest": "5.1.1"
   }

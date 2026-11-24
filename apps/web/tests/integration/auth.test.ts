@@ -124,7 +124,9 @@ describe("connections: ownership (security)", () => {
     const { connections } = await (
       await connectionsGET(request("/api/connections", a.cookie))
     ).json();
-    expect(connections.map((c: { id: string }) => c.id)).toEqual([aConnection]);
+    // Own connections plus the shared demo; never another user's.
+    const mine = connections.filter((c: { isDemo: boolean }) => !c.isDemo);
+    expect(mine.map((c: { id: string }) => c.id)).toEqual([aConnection]);
   });
 
   it("every ID route needs a session", async () => {

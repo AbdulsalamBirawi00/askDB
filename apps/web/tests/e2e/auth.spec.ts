@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+import { useUniqueClientIp } from "./helpers";
+
 test.describe("authentication", () => {
+  test.beforeEach(({ page }) => useUniqueClientIp(page));
+
   test("T1.1 visiting /app while signed out redirects to /login", async ({ page }) => {
     await page.goto("/en/app");
     await expect(page).toHaveURL(/\/en\/login$/);
@@ -19,7 +23,7 @@ test.describe("authentication", () => {
     await expect(page).toHaveURL(/\/en\/app$/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Welcome, Guest");
     await expect(page.getByText("Guest mode")).toBeVisible();
-    await expect(page.getByTestId("database-card")).toContainText("Northwind (sample data)");
+    await expect(page.getByTestId("database-card").filter({ hasText: "Northwind" })).toBeVisible();
 
     // Signed in: the login page sends you back to the app.
     await page.goto("/en/login");

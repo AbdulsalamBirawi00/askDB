@@ -51,3 +51,25 @@ export async function deleteCreatedUsers(): Promise<void> {
     .delete(schema.users)
     .where(inArray(schema.users.id, created.splice(0)));
 }
+
+/** The local Northwind database (pnpm db:northwind), as a given role. */
+export function northwindUrl(user = "readonly_demo", password?: string): string {
+  const url = new URL(process.env.DATABASE_URL!);
+  url.username = user;
+  url.password = password ?? process.env.NORTHWIND_READONLY_PASSWORD!;
+  url.pathname = "/northwind";
+  return url.toString();
+}
+
+export function jsonRequest(
+  path: string,
+  cookie: string | undefined,
+  method: string,
+  body: unknown,
+) {
+  return request(path, cookie, {
+    method,
+    body: JSON.stringify(body),
+    headers: { "content-type": "application/json" },
+  });
+}

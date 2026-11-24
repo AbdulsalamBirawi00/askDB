@@ -20,6 +20,17 @@ const envSchema = z
     // GitHub OAuth app. Both or neither; without them the GitHub button is hidden.
     GITHUB_CLIENT_ID: optional(z.string()),
     GITHUB_CLIENT_SECRET: optional(z.string()),
+    // AES-256-GCM key for saved connection URLs: 32 bytes, base64. `openssl rand -base64 32`.
+    CONNECTION_ENCRYPTION_KEY: required(
+      z.string().refine((v) => Buffer.from(v, "base64").length === 32, {
+        error: "must be 32 bytes, base64-encoded",
+      }),
+    ),
+    // Lets users connect to localhost/private addresses. Only for local development and CI.
+    ALLOW_PRIVATE_DB_HOSTS: z
+      .enum(["true", "false", ""])
+      .optional()
+      .transform((v) => v === "true"),
     // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`. Without it, cron routes refuse every call.
     CRON_SECRET: optional(z.string().min(16, { error: "must be at least 16 characters" })),
   })

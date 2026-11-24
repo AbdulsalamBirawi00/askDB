@@ -1,4 +1,4 @@
-import { deleteOwnedConnection, getOwnedConnection } from "@askdb/db";
+import { deleteOwnedConnection, getVisibleConnection } from "@askdb/db";
 
 import { notFound, requireApiUser } from "@/lib/api";
 import { getDb } from "@/lib/db";
@@ -9,10 +9,11 @@ export async function GET(request: Request, ctx: RouteContext<"/api/connections/
   const { user, response } = await requireApiUser(request);
   if (response) return response;
   const { id } = await ctx.params;
-  const connection = await getOwnedConnection(getDb(), id, user.id);
+  const connection = await getVisibleConnection(getDb(), id, user.id);
   return connection ? Response.json({ connection }) : notFound();
 }
 
+/** Only the owner can delete; the shared demo connection is not owned by any visitor. */
 export async function DELETE(request: Request, ctx: RouteContext<"/api/connections/[id]">) {
   const { user, response } = await requireApiUser(request);
   if (response) return response;

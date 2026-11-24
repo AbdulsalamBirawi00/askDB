@@ -1,4 +1,14 @@
-import { boolean, index, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+} from "drizzle-orm/pg-core";
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const updatedAt = () =>
@@ -79,8 +89,9 @@ export const verifications = pgTable(
 );
 
 /**
- * Saved database connections. Stage 2 fills `encrypted_url` (AES-256-GCM) and adds
- * the shared Northwind demo connection (`is_demo`). Deleting a user deletes theirs.
+ * Saved database connections. `encrypted_url` is AES-256-GCM ciphertext bound to the row id.
+ * `is_demo` marks the shared Northwind connection: every signed-in user can read it,
+ * only its owner (the system demo user) can change it. Deleting a user deletes theirs.
  */
 export const connections = pgTable(
   "connections",
@@ -92,7 +103,59 @@ export const connections = pgTable(
     name: text("name").notNull(),
     encryptedUrl: text("encrypted_url").notNull(),
     isDemo: boolean("is_demo").notNull().default(false),
+    /** The role can write or create objects; the UI shows a warning. */
+    hasWriteAccess: boolean("has_write_access").notNull().default(false),
+    /** More tables than the introspection limit; only the first ones are stored. */
+    schemaTruncated: boolean("schema_truncated").notNull().default(false),
+    introspectedAt: timestamp("introspected_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index("connections_user_id_idx").on(t.userId)],
+);
+
+export type SampleRow = Record<string, unknown>;
+export type ColumnReference = { schema: string; table: string; column: string };
+
+/** Tables found by introspection, with the user's note and visibility. */
+export const schemaTables = pgTable(
+  "schema_tables",
+  {
+    id: text("id").primaryKey(),
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => connections.id, { onDelete: "cascade" }),
+    schemaName: text("schema_name").notNull(),
+    tableName: text("table_name").notNull(),
+    kind: text("kind", { enum: ["table", "view"] })
+      .notNull()
+      .default("table"),
+    description: text("description"),
+    hidden: boolean("hidden").notNull().default(false),
+    /** Up to 3 rows, without columns that were sensitive at introspection time. */
+    sampleRows: jsonb("sample_rows").$type<SampleRow[]>().notNull().default([]),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("schema_tables_connection_table_uq").on(t.connectionId, t.schemaName, t.tableName),
+  ],
+);
+
+export const schemaColumns = pgTable(
+  "schema_columns",
+  {
+    id: text("id").primaryKey(),
+    tableId: text("table_id")
+      .notNull()
+      .references(() => schemaTables.id, { onDelete: "cascade" }),
+    columnName: text("column_name").notNull(),
+    dataType: text("data_type").notNull(),
+    nullable: boolean("nullable").notNull().default(true),
+    position: integer("position").notNull(),
+    isPrimaryKey: boolean("is_primary_key").notNull().default(false),
+    fkRef: jsonb("fk_ref").$type<ColumnReference>(),
+    description: text("description"),
+    hidden: boolean("hidden").notNull().default(false),
+    updatedAt: updatedAt(),
+  },
+  (t) => [unique("schema_columns_table_column_uq").on(t.tableId, t.columnName)],
 );

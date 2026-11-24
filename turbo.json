@@ -7,7 +7,9 @@
     "BETTER_AUTH_URL",
     "GITHUB_CLIENT_ID",
     "GITHUB_CLIENT_SECRET",
-    "CRON_SECRET"
+    "CRON_SECRET",
+    "CONNECTION_ENCRYPTION_KEY",
+    "ALLOW_PRIVATE_DB_HOSTS"
   ],
   "tasks": {
     "build": {
