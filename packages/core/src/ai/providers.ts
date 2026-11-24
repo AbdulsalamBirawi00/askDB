@@ -6,6 +6,8 @@ import { z } from "zod";
 
 export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 export const DEFAULT_GOOGLE_MODEL = "gemini-3.5-flash";
+/** Same key, a lighter model: Google's overloads often hit one model and not the other. */
+export const DEFAULT_GOOGLE_FALLBACK_MODEL = "gemini-3.5-flash-lite";
 export const DEFAULT_OLLAMA_MODEL = "qwen2.5-coder:7b";
 
 /** Keys and models. Every provider is optional; the configured ones are tried in order. */
@@ -14,6 +16,8 @@ export type ProviderConfig = {
   groqModel?: string;
   googleApiKey?: string;
   googleModel?: string;
+  /** Tried after `googleModel` on 429/5xx. "none" turns it off. */
+  googleFallbackModel?: string;
   /** Development only: a local Ollama server, e.g. http://localhost:11434/v1. */
   ollamaBaseUrl?: string;
   ollamaModel?: string;
@@ -23,7 +27,7 @@ export type ProviderName = "ollama" | "groq" | "google";
 
 type Candidate = { provider: ProviderName; model: string; languageModel: LanguageModel };
 
-/** Ollama (if set, for local work), then Groq, then Gemini as the fallback. */
+/** Ollama (if set, for local work), then Groq, then Gemini, then the lighter Gemini model. */
 export function configuredModels(config: ProviderConfig): Candidate[] {
   const out: Candidate[] = [];
   if (config.ollamaBaseUrl) {
@@ -44,12 +48,13 @@ export function configuredModels(config: ProviderConfig): Candidate[] {
     });
   }
   if (config.googleApiKey) {
+    const google = createGoogle({ apiKey: config.googleApiKey });
     const model = config.googleModel || DEFAULT_GOOGLE_MODEL;
-    out.push({
-      provider: "google",
-      model,
-      languageModel: createGoogle({ apiKey: config.googleApiKey })(model),
-    });
+    out.push({ provider: "google", model, languageModel: google(model) });
+    const fallback = config.googleFallbackModel || DEFAULT_GOOGLE_FALLBACK_MODEL;
+    if (fallback !== "none" && fallback !== model) {
+      out.push({ provider: "google", model: fallback, languageModel: google(fallback) });
+    }
   }
   return out;
 }
@@ -75,9 +80,10 @@ function statusOf(error: unknown): number | undefined {
 }
 
 /**
- * Worth trying the next provider: rate limit (429), server error or outage (5xx),
- * timeout, or a network failure with no response at all. Not a 400 (bad request,
- * our bug) and not a schema mismatch: the next provider would get the same input.
+ * Worth trying the next model: rate limit (429), server error or overload (5xx),
+ * timeout, a key the provider refuses (401/403), a model it does not serve (404),
+ * or a network failure with no response at all. Not a 400 (bad request, our bug)
+ * and not a schema mismatch: the next model would get the same input.
  */
 export function shouldFallBack(error: unknown): boolean {
   const status = statusOf(error);
@@ -88,7 +94,7 @@ export function shouldFallBack(error: unknown): boolean {
       inner instanceof Error && /TypeValidation|JSONParse|NoObjectGenerated/.test(inner.name)
     );
   }
-  return status === 408 || status === 429 || status >= 500 || status === 401 || status === 403;
+  return [401, 403, 404, 408, 429].includes(status) || status >= 500;
 }
 
 export type Generation<T> = {

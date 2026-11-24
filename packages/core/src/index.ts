@@ -42,6 +42,7 @@ export {
 } from "./sql/execute";
 export {
   configuredModels,
+  DEFAULT_GOOGLE_FALLBACK_MODEL,
   DEFAULT_GOOGLE_MODEL,
   DEFAULT_GROQ_MODEL,
   DEFAULT_OLLAMA_MODEL,

@@ -28,6 +28,7 @@ export function providerConfig(): ProviderConfig {
     groqModel: env.GROQ_MODEL,
     googleApiKey: env.GOOGLE_GENERATIVE_AI_API_KEY,
     googleModel: env.GOOGLE_MODEL,
+    googleFallbackModel: env.GOOGLE_FALLBACK_MODEL,
     // Local models are for development only.
     ollamaBaseUrl: env.NODE_ENV === "production" ? undefined : env.OLLAMA_BASE_URL,
     ollamaModel: env.OLLAMA_MODEL,
