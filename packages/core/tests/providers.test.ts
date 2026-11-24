@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import {
   askQuestion,
+  DEFAULT_GOOGLE_FALLBACK_MODEL,
   DEFAULT_GOOGLE_MODEL,
   generateWithFallback,
   NoProviderError,
@@ -15,7 +16,13 @@ import {
 } from "../src";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${DEFAULT_GOOGLE_MODEL}:generateContent`;
+/** Exact match: in an MSW path string, ":generateContent" would be a parameter matching any model. */
+const geminiUrl = (model: string) =>
+  new RegExp(
+    `^https://generativelanguage\\.googleapis\\.com/v1beta/models/${model.replaceAll(".", "\\.")}:generateContent$`,
+  );
+const GEMINI_URL = geminiUrl(DEFAULT_GOOGLE_MODEL);
+const GEMINI_LITE_URL = geminiUrl(DEFAULT_GOOGLE_FALLBACK_MODEL);
 
 const answer: SqlGeneration = {
   sql: "select country, count(*) as customers from customers group by country order by 2 desc limit 500",
@@ -121,8 +128,52 @@ describe("provider fallback", () => {
   });
 
   it("reports a clear error when every provider is rate limited", async () => {
-    server.use(http.post(GROQ_URL, rateLimited), http.post(GEMINI_URL, rateLimited));
+    server.use(
+      http.post(GROQ_URL, rateLimited),
+      http.post(GEMINI_URL, rateLimited),
+      http.post(GEMINI_LITE_URL, rateLimited),
+    );
     await expect(generateWithFallback(both, request)).rejects.toBeInstanceOf(ProvidersFailedError);
+  });
+
+  it("falls back to the lighter Gemini model when the first is overloaded (503)", async () => {
+    server.use(
+      http.post(GEMINI_URL, () =>
+        HttpResponse.json(
+          { error: { code: 503, status: "UNAVAILABLE", message: "high demand" } },
+          { status: 503 },
+        ),
+      ),
+      http.post(GEMINI_LITE_URL, () => geminiJson(answer)),
+    );
+    const result = await generateWithFallback({ googleApiKey: "test-google" }, request);
+    expect(result).toMatchObject({
+      provider: "google",
+      model: DEFAULT_GOOGLE_FALLBACK_MODEL,
+      output: answer,
+    });
+    expect(calls).toEqual([
+      "generativelanguage.googleapis.com",
+      "generativelanguage.googleapis.com",
+    ]);
+  });
+
+  it("falls back to the lighter Gemini model when the first one is not found (404)", async () => {
+    server.use(
+      http.post(GEMINI_URL, () => HttpResponse.json({ error: { code: 404 } }, { status: 404 })),
+      http.post(GEMINI_LITE_URL, () => geminiJson(answer)),
+    );
+    await expect(
+      generateWithFallback({ googleApiKey: "test-google" }, request),
+    ).resolves.toMatchObject({ model: DEFAULT_GOOGLE_FALLBACK_MODEL });
+  });
+
+  it("uses only one Gemini model when the fallback is turned off", async () => {
+    server.use(http.post(GEMINI_URL, rateLimited));
+    await expect(
+      generateWithFallback({ googleApiKey: "test-google", googleFallbackModel: "none" }, request),
+    ).rejects.toBeInstanceOf(ProvidersFailedError);
+    expect(calls).toEqual(["generativelanguage.googleapis.com"]);
   });
 
   it("fails clearly when no provider is configured", async () => {

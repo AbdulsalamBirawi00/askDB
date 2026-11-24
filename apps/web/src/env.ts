@@ -37,6 +37,8 @@ const envSchema = z
     GROQ_MODEL: optional(z.string()),
     GOOGLE_GENERATIVE_AI_API_KEY: optional(z.string()),
     GOOGLE_MODEL: optional(z.string()),
+    // Second Gemini model, tried when the first is overloaded. "none" turns it off.
+    GOOGLE_FALLBACK_MODEL: optional(z.string()),
     OLLAMA_BASE_URL: optional(z.url({ error: "must be a URL" })),
     OLLAMA_MODEL: optional(z.string()),
     // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`. Without it, cron routes refuse every call.

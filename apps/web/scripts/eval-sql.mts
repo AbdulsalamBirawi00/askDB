@@ -116,6 +116,7 @@ const providers = {
   groqModel: process.env.GROQ_MODEL || undefined,
   googleApiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || undefined,
   googleModel: process.env.GOOGLE_MODEL || undefined,
+  googleFallbackModel: process.env.GOOGLE_FALLBACK_MODEL || undefined,
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL || undefined,
   ollamaModel: process.env.OLLAMA_MODEL || undefined,
 };
