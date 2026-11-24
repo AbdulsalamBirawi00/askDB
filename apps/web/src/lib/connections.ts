@@ -15,6 +15,7 @@ import {
 import {
   createConnection,
   getOwnedConnectionSecret,
+  getVisibleConnectionSecret,
   refreshConnectionSchema,
   type PublicConnection,
 } from "@askdb/db";
@@ -59,6 +60,16 @@ export async function refreshUserConnection(userId: string, id: string): Promise
   const url = await validate(decryptSecret(secret.encryptedUrl, encryptionKey(), secret.id));
   const inspection = await inspectDatabase(url);
   return refreshConnectionSchema(getDb(), { id, userId, inspection });
+}
+
+/**
+ * The decrypted URL of a connection the user may query (own or demo), checked again
+ * against SSRF rules. Null when the user cannot see it. Never leaves the server.
+ */
+export async function openVisibleConnection(userId: string, id: string): Promise<URL | null> {
+  const secret = await getVisibleConnectionSecret(getDb(), id, userId);
+  if (!secret) return null;
+  return validate(decryptSecret(secret.encryptedUrl, encryptionKey(), secret.id));
 }
 
 /** Turns a connection error into a response that reveals nothing about the URL or server. */

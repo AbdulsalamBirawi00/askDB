@@ -19,7 +19,8 @@
     "db:migrate": "pnpm --filter @askdb/db db:migrate",
     "prepare": "husky || true",
     "db:northwind": "pnpm --filter @askdb/db northwind:load",
-    "db:seed-demo": "pnpm --filter @askdb/web seed:demo"
+    "db:seed-demo": "pnpm --filter @askdb/web seed:demo",
+    "eval:sql": "pnpm --filter @askdb/web eval:sql"
   },
   "devDependencies": {
     "husky": "9.1.7",

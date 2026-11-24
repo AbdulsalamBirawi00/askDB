@@ -10,8 +10,10 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
+    "test:model": "ASKDB_MODEL_TESTS=1 vitest run",
     "test:e2e": "playwright test",
-    "seed:demo": "tsx scripts/seed-demo.mts"
+    "seed:demo": "tsx scripts/seed-demo.mts",
+    "eval:sql": "tsx scripts/eval-sql.mts"
   },
   "dependencies": {
     "@askdb/core": "workspace:*",
@@ -38,6 +40,7 @@
     "@vitest/coverage-v8": "5.1.1",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "msw": "3.0.7",
     "postgres": "4.1.1",
     "tailwindcss": "4.3.3",
     "tsx": "^4.23.15",

@@ -159,3 +159,54 @@ export const schemaColumns = pgTable(
   },
   (t) => [unique("schema_columns_table_column_uq").on(t.tableId, t.columnName)],
 );
+
+/** A thread of follow-up questions against one connection. */
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => connections.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("conversations_user_id_idx").on(t.userId)],
+);
+
+export const queryStatus = pgEnum("query_status", [
+  "ok",
+  "clarification",
+  "rejected",
+  "error",
+  "timeout",
+]);
+
+/** Every question asked: the generated SQL, the outcome, and model metadata. */
+export const queries = pgTable(
+  "queries",
+  {
+    id: text("id").primaryKey(),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    question: text("question").notNull(),
+    sql: text("sql"),
+    status: queryStatus("status").notNull(),
+    /** Safe, user-facing reason (rejection or execution error). */
+    error: text("error"),
+    provider: text("provider"),
+    model: text("model"),
+    tokens: integer("tokens"),
+    durationMs: integer("duration_ms"),
+    rowCount: integer("row_count"),
+    repaired: boolean("repaired").notNull().default(false),
+    /** 1 = helpful, -1 = not helpful (Stage 5). */
+    rating: integer("rating"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("queries_conversation_id_idx").on(t.conversationId)],
+);

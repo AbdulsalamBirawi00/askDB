@@ -29,6 +29,7 @@ export {
   getConnectionSchema,
   getOwnedConnectionSecret,
   getVisibleConnection,
+  getVisibleConnectionSecret,
   listConnections,
   refreshConnectionSchema,
   updateSchemaColumn,
@@ -39,6 +40,13 @@ export {
   type SchemaPatch,
   type SchemaTableView,
 } from "./connections";
+export {
+  createConversation,
+  getOwnedConversation,
+  logQuery,
+  type QueryLogInput,
+  type QueryStatus,
+} from "./queries";
 export { DEMO_OWNER_ID, ensureDemoOwner } from "./demo";
 // Query operators from the same drizzle-orm copy as the schema (apps must not import a second one).
 export { and, eq, inArray, lt, sql } from "drizzle-orm";

@@ -9,6 +9,8 @@ try {
   // No local .env (CI sets variables directly).
 }
 
+const modelTests = process.env.ASKDB_MODEL_TESTS === "1";
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -19,7 +21,11 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
+    // Real-model tests (T3.1, T3.9, T3.11, T3.12) spend free quota: only `pnpm test:model` runs them.
+    include: modelTests
+      ? ["tests/model/**/*.test.ts"]
+      : ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
+    ...(modelTests ? { testTimeout: 120_000 } : {}),
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],

@@ -94,5 +94,28 @@
     "back": "Back to databases",
     "columnsCount": "{count} columns",
     "viewKind": "view"
+  },
+  "ask": {
+    "title": "Ask a question",
+    "subtitle": "Ask in English or Arabic. AskDB writes a read-only query and runs it.",
+    "askLink": "Ask a question",
+    "placeholder": "How many customers are in each country?",
+    "label": "Your question",
+    "submit": "Ask",
+    "asking": "Thinking…",
+    "sql": "Query",
+    "rows": "{count} rows",
+    "truncated": "Showing the first 500 rows.",
+    "noRows": "The query returned no rows.",
+    "clarification": "Can you be more specific?",
+    "rejected": "This query was blocked",
+    "failed": "The query failed",
+    "timeout": "The query took too long",
+    "unavailable": "Questions are not available right now. Try again in a minute.",
+    "genericError": "Something went wrong. Please try again.",
+    "examples": "Try:",
+    "example1": "How many customers are in each country?",
+    "example2": "Top 5 products by revenue",
+    "example3": "كم عدد الطلبات في كل سنة؟"
   }
 }

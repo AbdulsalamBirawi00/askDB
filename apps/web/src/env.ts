@@ -31,6 +31,14 @@ const envSchema = z
       .enum(["true", "false", ""])
       .optional()
       .transform((v) => v === "true"),
+    // Language models (Stage 3). All optional; configured ones are tried in order:
+    // Ollama (local development), then Groq, then Gemini as the fallback on 429 or outage.
+    GROQ_API_KEY: optional(z.string()),
+    GROQ_MODEL: optional(z.string()),
+    GOOGLE_GENERATIVE_AI_API_KEY: optional(z.string()),
+    GOOGLE_MODEL: optional(z.string()),
+    OLLAMA_BASE_URL: optional(z.url({ error: "must be a URL" })),
+    OLLAMA_MODEL: optional(z.string()),
     // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`. Without it, cron routes refuse every call.
     CRON_SECRET: optional(z.string().min(16, { error: "must be at least 16 characters" })),
   })
