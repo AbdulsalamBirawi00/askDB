@@ -140,6 +140,25 @@
     "failedAfterRetries": "AskDB tried 3 times and could not write a working query. Try rephrasing the question.",
     "editQuestion": "Edit question",
     "dailyLimit": "Daily limit reached. Try again tomorrow.",
-    "connectionFailed": "Could not reach the database. Try again in a minute."
+    "connectionFailed": "Could not reach the database. Try again in a minute.",
+    "followUpPlaceholder": "Ask a follow-up, e.g. show only the top 5",
+    "history": "History",
+    "newConversation": "New conversation",
+    "searchHistory": "Search history",
+    "noConversations": "No conversations yet.",
+    "noMatches": "No conversations match.",
+    "questionCount": "{count} questions",
+    "deleteConversation": "Delete conversation",
+    "deleteConfirm": "Delete this conversation? This cannot be undone.",
+    "ratingLabel": "Helpful?",
+    "helpful": "Helpful",
+    "notHelpful": "Not helpful",
+    "editSql": "Edit SQL",
+    "runSql": "Run",
+    "cancelEdit": "Cancel",
+    "sqlEditorLabel": "SQL editor",
+    "runAgain": "Run again",
+    "editedNote": "SQL edited by hand.",
+    "savedNote": "Results are not saved. Run the query again to see them."
   }
 }

@@ -22,6 +22,8 @@ export type AskResponse = {
   /** Model calls for the SQL: 1, or up to 3 after repairs. */
   attempts: number;
   repaired: boolean;
+  /** SQL changed by hand in the editor. */
+  edited: boolean;
   columns: { name: string; kind: ColumnKind }[];
   rows: Record<string, unknown>[];
   truncated: boolean;

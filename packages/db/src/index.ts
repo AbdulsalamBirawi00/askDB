@@ -42,10 +42,18 @@ export {
 } from "./connections";
 export {
   createConversation,
+  deleteConversation,
+  getConversationHistory,
   getOwnedConversation,
+  getOwnedQuery,
+  listConversations,
   logQuery,
+  rateQuery,
+  recentTurns,
+  type ConversationSummary,
   type QueryLogInput,
   type QueryStatus,
+  type QueryView,
 } from "./queries";
 export { DEMO_OWNER_ID, ensureDemoOwner } from "./demo";
 // Query operators from the same drizzle-orm copy as the schema (apps must not import a second one).

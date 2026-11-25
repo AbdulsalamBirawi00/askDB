@@ -4,7 +4,7 @@
  *
  *   pnpm eval:sql
  *
- * Needs GROQ_API_KEY and/or GOOGLE_GENERATIVE_AI_API_KEY (or OLLAMA_BASE_URL), the local
+ * Needs GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY and/or ZAI_API_KEY (or OLLAMA_BASE_URL), the local
  * app database with the demo connection (pnpm db:seed-demo), and the local Northwind.
  *
  * Saves the free quota: all 10 questions go to the model in ONE request, each answered
@@ -117,12 +117,23 @@ const providers = {
   googleApiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || undefined,
   googleModel: process.env.GOOGLE_MODEL || undefined,
   googleFallbackModel: process.env.GOOGLE_FALLBACK_MODEL || undefined,
+  gemmaModel: process.env.GEMMA_MODEL || undefined,
+  zaiApiKey: process.env.ZAI_API_KEY || undefined,
+  zaiModel: process.env.ZAI_MODEL || undefined,
+  nvidiaApiKey: process.env.NVIDIA_API_KEY || undefined,
+  nvidiaModel: process.env.NVIDIA_MODEL || undefined,
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL || undefined,
   ollamaModel: process.env.OLLAMA_MODEL || undefined,
 };
-if (!providers.groqApiKey && !providers.googleApiKey && !providers.ollamaBaseUrl) {
+if (
+  !providers.groqApiKey &&
+  !providers.googleApiKey &&
+  !providers.zaiApiKey &&
+  !providers.nvidiaApiKey &&
+  !providers.ollamaBaseUrl
+) {
   console.error(
-    "Set GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY, or OLLAMA_BASE_URL in .env first.",
+    "Set GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY, ZAI_API_KEY, NVIDIA_API_KEY, or OLLAMA_BASE_URL in .env first.",
   );
   process.exit(1);
 }

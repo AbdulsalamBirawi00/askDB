@@ -29,6 +29,7 @@ const base: AskResponse = {
   error: null,
   attempts: 1,
   repaired: false,
+  edited: false,
   columns: [],
   rows: [],
   truncated: false,
@@ -97,8 +98,9 @@ test.describe("ask page", () => {
     await expect(chart).toHaveAttribute("data-chart-type", "line");
     await expect(chart.locator(".recharts-line")).toHaveCount(1);
     // Month labels on the X axis, not raw timestamps.
-    await expect(chart.getByText("Jan 1997", { exact: true })).toBeVisible();
+    // Recharts may thin the labels on a narrow chart, but the last month always shows.
     await expect(chart.getByText("Dec 1997", { exact: true })).toBeVisible();
+    await expect(chart.getByText(/\d{4}-\d{2}-\d{2}|00:00/)).toHaveCount(0);
     await expect(page.getByTestId("summary")).toHaveText("Sales peaked in December.");
     // The table shows the dates as dates, without a time-zone shift.
     await expect(page.getByTestId("result-table")).toContainText("1997-01-01");

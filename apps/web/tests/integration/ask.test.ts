@@ -16,66 +16,18 @@ import {
   signInUser,
   type TestUser,
 } from "./helpers";
+import { completion, GROQ_URL, streamed, type ModelOutput } from "./model-mock";
 
 // The model is mocked: a key must exist for Groq to be tried; Groq is the only provider.
 vi.hoisted(() => {
   process.env.GROQ_API_KEY ||= "test-groq-key";
   delete process.env.OLLAMA_BASE_URL;
   delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  delete process.env.ZAI_API_KEY;
+  delete process.env.NVIDIA_API_KEY;
 });
 
 const DEMO = "demo-northwind";
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-
-type ModelOutput = {
-  sql: string | null;
-  explanation: string;
-  chartType: "table" | "bar" | "line" | "pie" | "number";
-  needsClarification: boolean;
-  clarificationQuestion: string | null;
-};
-
-const completion = (output: Partial<ModelOutput>) =>
-  HttpResponse.json({
-    id: "chatcmpl-test",
-    object: "chat.completion",
-    created: 1_700_000_000,
-    model: "test",
-    choices: [
-      {
-        index: 0,
-        message: {
-          role: "assistant",
-          content: JSON.stringify({
-            sql: null,
-            explanation: "Test",
-            chartType: "table",
-            needsClarification: false,
-            clarificationQuestion: null,
-            ...output,
-          }),
-        },
-        finish_reason: "stop",
-      },
-    ],
-    usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
-  });
-
-/** The summary call streams (OpenAI-compatible SSE). */
-const streamed = (text: string) =>
-  new HttpResponse(
-    [
-      { delta: { role: "assistant", content: text }, finish_reason: null },
-      { delta: {}, finish_reason: "stop" },
-    ]
-      .map(
-        (choice) =>
-          `data: ${JSON.stringify({ id: "s", object: "chat.completion.chunk", created: 1, model: "test", choices: [{ index: 0, ...choice }] })}\n\n`,
-      )
-      .join("") + "data: [DONE]\n\n",
-    { headers: { "content-type": "text/event-stream" } },
-  );
-
 /**
  * The mocked model: SQL requests get `outputs` in order (the last one repeats), the
  * summary request gets `summary`. Returns the number of SQL and summary calls made.
