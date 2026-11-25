@@ -4,10 +4,15 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import {
   askQuestion,
+  configuredModels,
+  DEFAULT_ZAI_MODEL,
+  DEFAULT_GEMMA_MODEL,
   DEFAULT_GOOGLE_FALLBACK_MODEL,
   DEFAULT_GOOGLE_MODEL,
+  DEFAULT_NVIDIA_MODEL,
   generateWithFallback,
   NoProviderError,
+  parseJsonReply,
   ProvidersFailedError,
   sqlGenerationSchema,
   SQL_INSTRUCTIONS,
@@ -23,6 +28,9 @@ const geminiUrl = (model: string) =>
   );
 const GEMINI_URL = geminiUrl(DEFAULT_GOOGLE_MODEL);
 const GEMINI_LITE_URL = geminiUrl(DEFAULT_GOOGLE_FALLBACK_MODEL);
+const GEMMA_URL = geminiUrl(DEFAULT_GEMMA_MODEL);
+const ZAI_URL = "https://api.z.ai/api/paas/v4/chat/completions";
+const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 
 const answer: SqlGeneration = {
   sql: "select country, count(*) as customers from customers group by country order by 2 desc limit 500",
@@ -132,6 +140,7 @@ describe("provider fallback", () => {
       http.post(GROQ_URL, rateLimited),
       http.post(GEMINI_URL, rateLimited),
       http.post(GEMINI_LITE_URL, rateLimited),
+      http.post(GEMMA_URL, rateLimited),
     );
     await expect(generateWithFallback(both, request)).rejects.toBeInstanceOf(ProvidersFailedError);
   });
@@ -168,12 +177,166 @@ describe("provider fallback", () => {
     ).resolves.toMatchObject({ model: DEFAULT_GOOGLE_FALLBACK_MODEL });
   });
 
-  it("uses only one Gemini model when the fallback is turned off", async () => {
+  it("uses only one Gemini model when the fallbacks are turned off", async () => {
     server.use(http.post(GEMINI_URL, rateLimited));
     await expect(
-      generateWithFallback({ googleApiKey: "test-google", googleFallbackModel: "none" }, request),
+      generateWithFallback(
+        { googleApiKey: "test-google", googleFallbackModel: "none", gemmaModel: "none" },
+        request,
+      ),
     ).rejects.toBeInstanceOf(ProvidersFailedError);
     expect(calls).toEqual(["generativelanguage.googleapis.com"]);
+  });
+
+  it("falls back to Gemma when both Gemini models are out of quota, reading JSON from its text", async () => {
+    let instructions = "";
+    server.use(
+      http.post(GEMINI_URL, rateLimited),
+      http.post(GEMINI_LITE_URL, rateLimited),
+      http.post(GEMMA_URL, async ({ request: req }) => {
+        const body = (await req.json()) as {
+          generationConfig?: { responseSchema?: unknown; responseMimeType?: string };
+        };
+        // Gemma has no system role: the SDK folds the instructions into the first message.
+        instructions = JSON.stringify(body);
+        // "prompt" mode: no schema is sent to the API, it is in the instructions.
+        expect(body.generationConfig?.responseSchema).toBeUndefined();
+        // Gemma wraps the object in a code fence; the reply is still read.
+        return HttpResponse.json({
+          candidates: [
+            {
+              content: {
+                role: "model",
+                parts: [{ text: "```json\n" + JSON.stringify(answer) + "\n```" }],
+              },
+              finishReason: "STOP",
+              index: 0,
+            },
+          ],
+          usageMetadata: { promptTokenCount: 90, candidatesTokenCount: 30, totalTokenCount: 120 },
+        });
+      }),
+    );
+    const result = await generateWithFallback({ googleApiKey: "test-google" }, request);
+    expect(result).toMatchObject({
+      provider: "google",
+      model: DEFAULT_GEMMA_MODEL,
+      output: answer,
+    });
+    expect(instructions).toContain("JSON Schema");
+    expect(instructions).toContain("needsClarification");
+  });
+
+  it("moves on to Z.ai GLM when Gemma's reply is not the JSON asked for", async () => {
+    server.use(
+      http.post(GEMINI_URL, rateLimited),
+      http.post(ZAI_URL, () => groqJson({ ...answer, sql: "select 1" })),
+      http.post(GEMINI_LITE_URL, rateLimited),
+      http.post(GEMMA_URL, () =>
+        HttpResponse.json({
+          candidates: [
+            {
+              content: { role: "model", parts: [{ text: "Sure! Here is the query: select 1" }] },
+              finishReason: "STOP",
+              index: 0,
+            },
+          ],
+        }),
+      ),
+    );
+    // Quality order: Gemini → Z.ai → Gemini lite → Gemma. Z.ai answers first here.
+    const result = await generateWithFallback(
+      { googleApiKey: "test-google", zaiApiKey: "test-zai" },
+      request,
+    );
+    expect(result).toMatchObject({
+      provider: "zai",
+      model: DEFAULT_ZAI_MODEL,
+      output: { sql: "select 1" },
+    });
+    expect(calls).toEqual(["generativelanguage.googleapis.com", "api.z.ai"]);
+  });
+
+  it("falls back past a Gemma reply that does not parse", async () => {
+    server.use(
+      http.post(GEMINI_URL, rateLimited),
+      http.post(GEMINI_LITE_URL, rateLimited),
+      http.post(GEMMA_URL, () =>
+        HttpResponse.json({
+          candidates: [
+            {
+              content: { role: "model", parts: [{ text: '{"sql": 42}' }] },
+              finishReason: "STOP",
+              index: 0,
+            },
+          ],
+        }),
+      ),
+    );
+    await expect(
+      generateWithFallback({ googleApiKey: "test-google" }, request),
+    ).rejects.toBeInstanceOf(ProvidersFailedError);
+  });
+
+  it("orders models by quality for SQL and by cost for summaries", () => {
+    const config = {
+      groqApiKey: "g",
+      googleApiKey: "k",
+      zaiApiKey: "c",
+      nvidiaApiKey: "n",
+    };
+    expect(configuredModels(config).map((c) => c.model)).toEqual([
+      "openai/gpt-oss-120b",
+      DEFAULT_GOOGLE_MODEL,
+      DEFAULT_ZAI_MODEL,
+      DEFAULT_NVIDIA_MODEL,
+      DEFAULT_GOOGLE_FALLBACK_MODEL,
+      DEFAULT_GEMMA_MODEL,
+    ]);
+    expect(configuredModels(config, "cheap").map((c) => c.model)).toEqual([
+      DEFAULT_GOOGLE_FALLBACK_MODEL,
+      DEFAULT_GEMMA_MODEL,
+      DEFAULT_ZAI_MODEL,
+      DEFAULT_NVIDIA_MODEL,
+      "openai/gpt-oss-120b",
+      DEFAULT_GOOGLE_MODEL,
+    ]);
+    expect(
+      configuredModels({ zaiApiKey: "c", zaiModel: "glm-4.7-flash" }).map((c) => [
+        c.provider,
+        c.model,
+      ]),
+    ).toEqual([["zai", "glm-4.7-flash"]]);
+  });
+
+  it("falls back to NVIDIA when Z.ai is overloaded", async () => {
+    server.use(
+      http.post(ZAI_URL, () =>
+        HttpResponse.json(
+          { error: { code: "1305", message: "The service may be temporarily overloaded" } },
+          { status: 429 },
+        ),
+      ),
+      http.post(NVIDIA_URL, () => groqJson(answer)),
+    );
+    const result = await generateWithFallback({ zaiApiKey: "z", nvidiaApiKey: "n" }, request);
+    expect(result).toMatchObject({
+      provider: "nvidia",
+      model: DEFAULT_NVIDIA_MODEL,
+      output: answer,
+    });
+    expect(calls).toEqual(["api.z.ai", "integrate.api.nvidia.com"]);
+  });
+
+  it("reads a JSON object out of a reply, or refuses it", () => {
+    expect(
+      parseJsonReply(`Here you go:\n${JSON.stringify(answer)}\nDone.`, sqlGenerationSchema),
+    ).toEqual(answer);
+    expect(() => parseJsonReply("no json at all", sqlGenerationSchema)).toThrow(
+      "did not return the expected JSON",
+    );
+    expect(() => parseJsonReply("{not: valid}", sqlGenerationSchema)).toThrow();
+    expect(() => parseJsonReply('{"sql": "select 1"}', sqlGenerationSchema)).toThrow();
   });
 
   it("fails clearly when no provider is configured", async () => {

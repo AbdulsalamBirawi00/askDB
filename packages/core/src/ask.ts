@@ -13,6 +13,7 @@ import {
   SUMMARY_INSTRUCTIONS,
   type ChartType,
   type FailedAttempt,
+  type HistoryTurn,
   type PromptTable,
 } from "./ai/prompt";
 import { chooseChart, columnKind, type ChartSpec, type ColumnKind } from "./results/chart";
@@ -81,11 +82,85 @@ export function promptTables(tables: AskTable[]): PromptTable[] {
 const addTokens = (a: number | null, b: number | null) =>
   a === null && b === null ? null : (a ?? 0) + (b ?? 0);
 
+/** What running one guarded query gives back. Anything else (connection failures) is thrown. */
+export type RunOutcome =
+  | { status: "rejected"; sql: string; reason: GuardReason; error: string }
+  | { status: "error"; sql: string; error: string; code: string }
+  | { status: "timeout"; sql: string; error: string }
+  | {
+      status: "ok";
+      sql: string;
+      chart: ChartSpec;
+      columns: AnswerColumn[];
+      result: QueryResult;
+    };
+
+/**
+ * Guard → read-only execution → hidden columns dropped → chart chosen. The one path every
+ * query takes, whether the model wrote it or the user edited it by hand, so all three
+ * safety layers (guard, read-only transaction, read-only role) always apply.
+ */
+export async function runSql(input: {
+  sql: string;
+  url: URL;
+  tables: AskTable[];
+  /** The model's chart suggestion; the data still decides. */
+  suggested?: ChartType;
+  /** Called once the guard has passed, right before the query runs. */
+  onRunning?: () => void;
+  /** Test seam: runs guarded SQL. Defaults to the read-only executor on `url`. */
+  execute?: (sql: string) => Promise<QueryResult>;
+}): Promise<RunOutcome> {
+  const guarded = guardSql(input.sql, guardSchemaOf(input.tables));
+  if (!guarded.ok) {
+    return { status: "rejected", sql: input.sql, reason: guarded.reason, error: guarded.message };
+  }
+  const execute = input.execute ?? ((sql: string) => executeReadOnly(input.url, sql));
+  input.onRunning?.();
+  try {
+    const result = await execute(guarded.sql);
+    const visible = dropHiddenColumns(result.rows, result.columns, guarded.hiddenColumns);
+    const resultColumns = result.columns.filter((c) =>
+      visible.columns.some((v) => v.name === c.name),
+    );
+    const columns = resultColumns.map((c) => ({ name: c.name, kind: columnKind(c.type) }));
+    return {
+      status: "ok",
+      sql: guarded.sql,
+      chart: chooseChart({ suggested: input.suggested ?? "table", columns, rows: visible.rows }),
+      columns,
+      result: { ...result, rows: visible.rows, columns: resultColumns },
+    };
+  } catch (error) {
+    if (error instanceof QueryTimeoutError) {
+      return { status: "timeout", sql: guarded.sql, error: error.message };
+    }
+    if (error instanceof QueryExecutionError) {
+      return { status: "error", sql: guarded.sql, error: error.message, code: error.code };
+    }
+    throw error;
+  }
+}
+
+function guardSchemaOf(tables: AskTable[]) {
+  return {
+    tables: tables.map((t) => ({
+      schema: t.schema,
+      name: t.name,
+      hidden: t.hidden,
+      columns: t.columns.map((c) => ({ name: c.name, hidden: c.hidden })),
+    })),
+  };
+}
+
 /**
  * Question → model → guard → read-only execution, with auto-repair: when the database
  * rejects the query (unknown column, type mismatch...), the SQL and the error go back
  * to the model, at most MAX_REPAIRS times. Every repaired query passes the guard again.
  * Rejections by the guard and timeouts are not repaired.
+ *
+ * `history` holds the earlier questions of the conversation (SQL only, never results);
+ * only the last MAX_HISTORY_TURNS reach the model.
  *
  * Provider failures and connection failures are thrown (the caller decides the
  * response); everything about the query itself comes back as an outcome so it can be logged.
@@ -95,6 +170,7 @@ export async function askQuestion(input: {
   url: URL;
   tables: AskTable[];
   providers: ProviderConfig;
+  history?: HistoryTurn[];
   abortSignal?: AbortSignal;
   onStage?: (stage: AskStage, attempt: number) => void;
   maxRepairs?: number;
@@ -102,16 +178,8 @@ export async function askQuestion(input: {
   execute?: (sql: string) => Promise<QueryResult>;
 }): Promise<AskOutcome> {
   const tables = promptTables(input.tables);
+  const history = input.history ?? [];
   const maxRepairs = input.maxRepairs ?? MAX_REPAIRS;
-  const execute = input.execute ?? ((sql: string) => executeReadOnly(input.url, sql));
-  const guardSchema = {
-    tables: input.tables.map((t) => ({
-      schema: t.schema,
-      name: t.name,
-      hidden: t.hidden,
-      columns: t.columns.map((c) => ({ name: c.name, hidden: c.hidden })),
-    })),
-  };
   const failures: FailedAttempt[] = [];
   let tokens: number | null = null;
 
@@ -120,8 +188,8 @@ export async function askQuestion(input: {
     const generation = await generateWithFallback(input.providers, {
       instructions: SQL_INSTRUCTIONS,
       prompt: failures.length
-        ? buildRepairPrompt(input.question, tables, failures)
-        : buildSqlPrompt(input.question, tables),
+        ? buildRepairPrompt(input.question, tables, failures, history)
+        : buildSqlPrompt(input.question, tables, history),
       schema: sqlGenerationSchema,
       abortSignal: input.abortSignal,
     });
@@ -144,51 +212,20 @@ export async function askQuestion(input: {
       };
     }
 
-    const guarded = guardSql(output.sql, guardSchema);
-    if (!guarded.ok) {
-      return {
-        ...base,
-        status: "rejected",
-        sql: output.sql,
-        reason: guarded.reason,
-        error: guarded.message,
-      };
+    const sql = output.sql;
+    const run = await runSql({
+      sql,
+      url: input.url,
+      tables: input.tables,
+      suggested: output.chartType,
+      execute: input.execute,
+      onRunning: () => input.onStage?.("running", attempt),
+    });
+    if (run.status === "ok") {
+      return { ...base, ...run, chartType: output.chartType, repaired: attempt > 1 };
     }
-
-    input.onStage?.("running", attempt);
-    try {
-      const result = await execute(guarded.sql);
-      const visible = dropHiddenColumns(result.rows, result.columns, guarded.hiddenColumns);
-      const resultColumns = result.columns.filter((c) =>
-        visible.columns.some((v) => v.name === c.name),
-      );
-      const columns = resultColumns.map((c) => ({ name: c.name, kind: columnKind(c.type) }));
-      return {
-        ...base,
-        status: "ok",
-        sql: guarded.sql,
-        chartType: output.chartType,
-        chart: chooseChart({ suggested: output.chartType, columns, rows: visible.rows }),
-        columns,
-        result: { ...result, rows: visible.rows, columns: resultColumns },
-        repaired: attempt > 1,
-      };
-    } catch (error) {
-      if (error instanceof QueryTimeoutError) {
-        return { ...base, status: "timeout", sql: guarded.sql, error: error.message };
-      }
-      if (!(error instanceof QueryExecutionError)) throw error;
-      if (attempt > maxRepairs) {
-        return {
-          ...base,
-          status: "error",
-          sql: guarded.sql,
-          error: error.message,
-          code: error.code,
-        };
-      }
-      failures.push({ sql: guarded.sql, error: error.message });
-    }
+    if (run.status !== "error" || attempt > maxRepairs) return { ...base, ...run };
+    failures.push({ sql: run.sql, error: run.error });
   }
 }
 
@@ -214,5 +251,6 @@ export function summarizeResult(input: {
       truncated: input.truncated,
     }),
     abortSignal: input.abortSignal,
+    order: "cheap",
   });
 }

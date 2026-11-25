@@ -140,6 +140,25 @@
     "failedAfterRetries": "حاول AskDB ثلاث مرات ولم يتمكن من كتابة استعلام يعمل. جرّب إعادة صياغة السؤال.",
     "editQuestion": "تعديل السؤال",
     "dailyLimit": "وصلت إلى الحد اليومي. حاول مرة أخرى غدًا.",
-    "connectionFailed": "تعذّر الوصول إلى قاعدة البيانات. حاول بعد دقيقة."
+    "connectionFailed": "تعذّر الوصول إلى قاعدة البيانات. حاول بعد دقيقة.",
+    "followUpPlaceholder": "اسأل سؤال متابعة، مثل: اعرض أفضل 5 فقط",
+    "history": "السجل",
+    "newConversation": "محادثة جديدة",
+    "searchHistory": "ابحث في السجل",
+    "noConversations": "لا توجد محادثات بعد.",
+    "noMatches": "لا توجد محادثات مطابقة.",
+    "questionCount": "عدد الأسئلة: {count}",
+    "deleteConversation": "حذف المحادثة",
+    "deleteConfirm": "هل تريد حذف هذه المحادثة؟ لا يمكن التراجع عن ذلك.",
+    "ratingLabel": "هل كانت مفيدة؟",
+    "helpful": "مفيدة",
+    "notHelpful": "غير مفيدة",
+    "editSql": "تعديل SQL",
+    "runSql": "تشغيل",
+    "cancelEdit": "إلغاء",
+    "sqlEditorLabel": "محرر SQL",
+    "runAgain": "تشغيل مجددًا",
+    "editedNote": "تم تعديل SQL يدويًا.",
+    "savedNote": "النتائج لا تُحفظ. شغّل الاستعلام مجددًا لعرضها."
   }
 }

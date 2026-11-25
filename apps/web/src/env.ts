@@ -31,14 +31,21 @@ const envSchema = z
       .enum(["true", "false", ""])
       .optional()
       .transform((v) => v === "true"),
-    // Language models (Stage 3). All optional; configured ones are tried in order:
-    // Ollama (local development), then Groq, then Gemini as the fallback on 429 or outage.
+    // Language models. All optional; configured ones are tried in order (see
+    // packages/core/src/ai/providers.ts): for SQL, Groq, Gemini, Z.ai, NVIDIA, Gemini lite,
+    // Gemma; for summaries, the light models first. Ollama goes first when set (local only).
     GROQ_API_KEY: optional(z.string()),
     GROQ_MODEL: optional(z.string()),
     GOOGLE_GENERATIVE_AI_API_KEY: optional(z.string()),
     GOOGLE_MODEL: optional(z.string()),
     // Second Gemini model, tried when the first is overloaded. "none" turns it off.
     GOOGLE_FALLBACK_MODEL: optional(z.string()),
+    // Gemma on the same Google key, with its own free quota. "none" turns it off.
+    GEMMA_MODEL: optional(z.string()),
+    ZAI_API_KEY: optional(z.string()),
+    ZAI_MODEL: optional(z.string()),
+    NVIDIA_API_KEY: optional(z.string()),
+    NVIDIA_MODEL: optional(z.string()),
     OLLAMA_BASE_URL: optional(z.url({ error: "must be a URL" })),
     OLLAMA_MODEL: optional(z.string()),
     // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`. Without it, cron routes refuse every call.

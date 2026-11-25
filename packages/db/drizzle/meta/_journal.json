@@ -29,6 +29,13 @@
       "when": 1795513022500,
       "tag": "0003_query_log",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795611726066,
+      "tag": "0004_stage5_history",
+      "breakpoints": true
     }
   ]
 }

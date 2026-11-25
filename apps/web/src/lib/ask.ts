@@ -2,20 +2,27 @@ import "server-only";
 
 import {
   askQuestion,
+  CHART_TYPES,
   ConnectionUrlError,
   ExecutorConnectionError,
   NoProviderError,
+  MAX_HISTORY_TURNS,
   ProvidersFailedError,
+  runSql,
   summarizeResult,
   type AskOutcome,
   type AskTable,
+  type ChartType,
+  type HistoryTurn,
   type ProviderConfig,
 } from "@askdb/core";
 import {
   createConversation,
   getConnectionSchema,
   getOwnedConversation,
+  getOwnedQuery,
   logQuery,
+  recentTurns,
   type QueryLogInput,
 } from "@askdb/db";
 
@@ -32,6 +39,11 @@ export function providerConfig(): ProviderConfig {
     googleApiKey: env.GOOGLE_GENERATIVE_AI_API_KEY,
     googleModel: env.GOOGLE_MODEL,
     googleFallbackModel: env.GOOGLE_FALLBACK_MODEL,
+    gemmaModel: env.GEMMA_MODEL,
+    zaiApiKey: env.ZAI_API_KEY,
+    zaiModel: env.ZAI_MODEL,
+    nvidiaApiKey: env.NVIDIA_API_KEY,
+    nvidiaModel: env.NVIDIA_MODEL,
     // Local models are for development only.
     ollamaBaseUrl: env.NODE_ENV === "production" ? undefined : env.OLLAMA_BASE_URL,
     ollamaModel: env.OLLAMA_MODEL,
@@ -46,6 +58,8 @@ export type PreparedAsk = {
   tables: AskTable[];
   conversationId: string;
   question: string;
+  /** Earlier questions of the conversation, oldest first (SQL only, never results). */
+  history: HistoryTurn[];
 };
 
 /**
@@ -61,6 +75,7 @@ export async function prepareAsk(userId: string, input: AskInput): Promise<Prepa
   if (!tables) return null;
 
   let conversationId = input.conversationId;
+  let history: HistoryTurn[] = [];
   if (conversationId) {
     const owned = await getOwnedConversation(db, {
       id: conversationId,
@@ -68,6 +83,7 @@ export async function prepareAsk(userId: string, input: AskInput): Promise<Prepa
       connectionId: input.connectionId,
     });
     if (!owned) return null;
+    history = toHistory(await recentTurns(db, conversationId, MAX_HISTORY_TURNS));
   } else {
     conversationId = (
       await createConversation(db, {
@@ -77,7 +93,19 @@ export async function prepareAsk(userId: string, input: AskInput): Promise<Prepa
       })
     ).id;
   }
-  return { url, tables, conversationId, question: input.question };
+  return { url, tables, conversationId, question: input.question, history };
+}
+
+/**
+ * A logged turn as follow-up context. Only SQL that ran is passed on (a rejected UPDATE
+ * must not come back as "the latest query"); a clarification passes what was asked back.
+ */
+function toHistory(turns: Awaited<ReturnType<typeof recentTurns>>): HistoryTurn[] {
+  return turns.map((turn) => ({
+    question: turn.question,
+    sql: turn.status === "ok" ? turn.sql : null,
+    clarification: turn.status === "clarification" ? turn.explanation : null,
+  }));
 }
 
 function failureOf(error: unknown): { code: AskFailureCode; message: string } | null {
@@ -111,6 +139,7 @@ function toResponse(
     error: "error" in outcome ? outcome.error : null,
     attempts: outcome.attempts,
     repaired: ok ? ok.repaired : false,
+    edited: false,
     columns: ok ? ok.columns : [],
     rows: ok ? ok.result.rows : [],
     truncated: ok ? ok.result.truncated : false,
@@ -161,6 +190,7 @@ export function streamAsk(prepared: PreparedAsk, signal?: AbortSignal): Readable
           question: prepared.question,
           url: prepared.url,
           tables: prepared.tables,
+          history: prepared.history,
           providers: providerConfig(),
           abortSignal: signal,
           onStage: (stage, attempt) => send({ type: "stage", stage, attempt }),
@@ -195,6 +225,9 @@ export function streamAsk(prepared: PreparedAsk, signal?: AbortSignal): Readable
         tokens: outcome.tokens,
         rowCount: ok ? ok.result.rows.length : null,
         repaired: ok ? ok.repaired : false,
+        explanation:
+          outcome.status === "clarification" ? outcome.clarificationQuestion : outcome.explanation,
+        chartType: ok ? ok.chartType : null,
       });
       send({
         type: "result",
@@ -225,4 +258,70 @@ export function streamAsk(prepared: PreparedAsk, signal?: AbortSignal): Readable
       close();
     },
   });
+}
+
+/**
+ * Runs SQL from the editor for one of the user's earlier turns ("run again" or an edited
+ * query). It takes the same guarded path as model SQL (core `runSql`: guard, read-only
+ * transaction, read-only role) and is logged as a new turn of the same conversation,
+ * flagged `edited` when the SQL differs from what ran before. Null when the turn is not
+ * the user's (or its connection is no longer visible), for a 404.
+ */
+export async function runEditedSql(
+  userId: string,
+  input: { queryId: string; sql: string },
+): Promise<AskResponse | null> {
+  const db = getDb();
+  const source = await getOwnedQuery(db, { id: input.queryId, userId });
+  if (!source) return null;
+  const url = await openVisibleConnection(userId, source.connectionId);
+  if (!url) return null;
+  const tables = await getConnectionSchema(db, source.connectionId, userId);
+  if (!tables) return null;
+
+  const started = performance.now();
+  const run = await runSql({
+    sql: input.sql,
+    url,
+    tables,
+    suggested: chartTypeOf(source.chartType),
+  });
+  const durationMs = Math.round(performance.now() - started);
+  const ok = run.status === "ok" ? run : null;
+  const edited = input.sql.trim() !== (source.sql ?? "").trim();
+  const { id: queryId } = await logQuery(db, {
+    conversationId: source.conversationId,
+    question: source.question,
+    sql: run.sql,
+    status: run.status,
+    error: "error" in run ? run.error : null,
+    provider: null,
+    model: null,
+    tokens: null,
+    durationMs,
+    rowCount: ok ? ok.result.rows.length : null,
+    chartType: source.chartType,
+    edited,
+  });
+  return {
+    conversationId: source.conversationId,
+    queryId,
+    status: run.status,
+    sql: run.sql,
+    explanation: null,
+    chart: ok ? ok.chart : null,
+    clarificationQuestion: null,
+    error: "error" in run ? run.error : null,
+    attempts: 0,
+    repaired: false,
+    edited,
+    columns: ok ? ok.columns : [],
+    rows: ok ? ok.result.rows : [],
+    truncated: ok ? ok.result.truncated : false,
+    durationMs,
+  };
+}
+
+function chartTypeOf(value: string | null): ChartType | undefined {
+  return CHART_TYPES.find((type) => type === value);
 }

@@ -206,6 +206,12 @@ export const queries = pgTable(
     repaired: boolean("repaired").notNull().default(false),
     /** 1 = helpful, -1 = not helpful (Stage 5). */
     rating: integer("rating"),
+    /** The model's explanation, or the question it asked back (clarification). */
+    explanation: text("explanation"),
+    /** The model's chart suggestion; the data decides the final chart on each run. */
+    chartType: text("chart_type"),
+    /** SQL written or changed by the user in the editor, not by the model. */
+    edited: boolean("edited").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [index("queries_conversation_id_idx").on(t.conversationId)],

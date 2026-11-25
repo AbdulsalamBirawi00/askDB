@@ -13,7 +13,12 @@ import {
 } from "../integration/helpers";
 
 const DEMO = "demo-northwind";
-const hasModel = !!(process.env.GROQ_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+const hasModel = !!(
+  process.env.GROQ_API_KEY ||
+  process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+  process.env.ZAI_API_KEY ||
+  process.env.NVIDIA_API_KEY
+);
 
 type Answer = {
   status: string;
