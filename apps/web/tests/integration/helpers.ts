@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { eq, inArray, schema } from "@askdb/db";
 
+import { readAskStream, type AskResponse } from "@/lib/ask-stream";
 import { getAuth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 
@@ -72,4 +73,29 @@ export function jsonRequest(
     body: JSON.stringify(body),
     headers: { "content-type": "application/json" },
   });
+}
+
+/** Collects an /api/ask NDJSON stream: the stages in order, the result, the summary, any failure. */
+export async function readAsk(response: Response): Promise<{
+  stages: string[];
+  result: AskResponse | null;
+  summary: string;
+  failure: { code: string; message: string } | null;
+  done: boolean;
+}> {
+  const out = {
+    stages: [] as string[],
+    result: null as AskResponse | null,
+    summary: "",
+    failure: null as { code: string; message: string } | null,
+    done: false,
+  };
+  for await (const event of readAskStream(response.body!)) {
+    if (event.type === "stage") out.stages.push(event.stage);
+    else if (event.type === "result") out.result = event.result;
+    else if (event.type === "summary") out.summary += event.text;
+    else if (event.type === "failure") out.failure = { code: event.code, message: event.message };
+    else out.done = true;
+  }
+  return out;
 }

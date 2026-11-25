@@ -33,7 +33,7 @@ async function Ask({ params }: { params: Params }) {
           {connection.name} · {labels.subtitle}
         </p>
       </div>
-      <AskBox connectionId={connection.id} labels={labels} />
+      <AskBox connectionId={connection.id} lang={lang} labels={labels} />
     </>
   );
 }

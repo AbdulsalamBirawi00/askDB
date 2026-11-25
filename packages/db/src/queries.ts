@@ -51,6 +51,8 @@ export type QueryLogInput = {
   tokens: number | null;
   durationMs: number | null;
   rowCount: number | null;
+  /** The first SQL failed and a repaired one worked. */
+  repaired?: boolean;
 };
 
 /** Records one attempt. Never stores result rows. */
