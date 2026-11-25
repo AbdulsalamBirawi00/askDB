@@ -3,6 +3,10 @@ import postgres from "postgres";
 export const MAX_ROWS = 500;
 export const QUERY_TIMEOUT_MS = 10_000;
 
+const DATE_OID = 1082;
+const TIMESTAMP_OID = 1114;
+const TIMESTAMPTZ_OID = 1184;
+
 export type ResultColumn = { name: string; type: number };
 
 export type QueryResult = {
@@ -80,6 +84,16 @@ export async function executeReadOnly(
     prepare: false,
     onnotice: () => {},
     connection: { application_name: "askdb" },
+    // Dates and timestamps stay as Postgres text ("1997-07-04", "1997-07-01 00:00:00"):
+    // parsing them into JS Dates would shift them by the server's time zone.
+    types: {
+      dateText: {
+        to: 25,
+        from: [DATE_OID, TIMESTAMP_OID, TIMESTAMPTZ_OID],
+        serialize: (value: string) => value,
+        parse: (value: string) => value,
+      },
+    },
   });
   const started = performance.now();
   try {

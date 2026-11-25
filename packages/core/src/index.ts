@@ -50,18 +50,42 @@ export {
   NoProviderError,
   ProvidersFailedError,
   shouldFallBack,
+  streamTextWithFallback,
   type Generation,
   type ProviderConfig,
   type ProviderName,
 } from "./ai/providers";
 export {
+  buildRepairPrompt,
   buildSqlPrompt,
+  buildSummaryPrompt,
   CHART_TYPES,
   describeSchema,
   SQL_INSTRUCTIONS,
   sqlGenerationSchema,
+  SUMMARY_INSTRUCTIONS,
+  SUMMARY_ROW_LIMIT,
   type ChartType,
+  type FailedAttempt,
   type PromptTable,
   type SqlGeneration,
 } from "./ai/prompt";
-export { askQuestion, promptTables, type AskOutcome, type AskTable } from "./ask";
+export {
+  askQuestion,
+  MAX_REPAIRS,
+  promptTables,
+  summarizeResult,
+  type AnswerColumn,
+  type AskOutcome,
+  type AskStage,
+  type AskTable,
+} from "./ask";
+export {
+  chooseChart,
+  columnKind,
+  MAX_BAR_CATEGORIES,
+  MAX_PIE_SLICES,
+  toNumber,
+  type ChartSpec,
+  type ColumnKind,
+} from "./results/chart";

@@ -1,7 +1,7 @@
 import { createGoogle } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { APICallError, generateText, Output, RetryError, type LanguageModel } from "ai";
+import { APICallError, generateText, Output, RetryError, streamText, type LanguageModel } from "ai";
 import { z } from "zod";
 
 export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
@@ -140,6 +140,46 @@ export async function generateWithFallback<S extends z.ZodType>(
         throw error;
       }
     }
+  }
+  throw new ProvidersFailedError(causes);
+}
+
+/**
+ * Plain-text streaming with fallback. A provider that fails before sending any text is
+ * skipped for the next one; once text has started, a failure ends the stream there
+ * (the reader already has part of an answer, and starting over would repeat it).
+ * Yields text deltas. Throws ProvidersFailedError only when no provider sent anything.
+ */
+export async function* streamTextWithFallback(
+  config: ProviderConfig,
+  request: { instructions: string; prompt: string; abortSignal?: AbortSignal },
+): AsyncGenerator<string, void, undefined> {
+  const candidates = configuredModels(config);
+  if (candidates.length === 0) throw new NoProviderError();
+  const causes: { provider: ProviderName; status?: number }[] = [];
+  for (const candidate of candidates) {
+    const result = streamText({
+      model: candidate.languageModel,
+      instructions: request.instructions,
+      prompt: request.prompt,
+      temperature: 0,
+      maxRetries: 0,
+      abortSignal: request.abortSignal,
+    });
+    let sent = false;
+    let failure: unknown = null;
+    for await (const part of result.fullStream) {
+      if (part.type === "text-delta" && part.text) {
+        sent = true;
+        yield part.text;
+      } else if (part.type === "error") {
+        failure = part.error;
+        break;
+      }
+    }
+    if (failure === null || sent) return;
+    causes.push({ provider: candidate.provider, status: statusOf(failure) });
+    if (!shouldFallBack(failure)) throw failure;
   }
   throw new ProvidersFailedError(causes);
 }

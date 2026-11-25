@@ -7,6 +7,7 @@ import {
   deleteCreatedUsers,
   jsonRequest,
   northwindUrl,
+  readAsk,
   signInGuest,
   type TestUser,
 } from "../integration/helpers";
@@ -34,7 +35,9 @@ describe.skipIf(!hasModel)("questions against a real model", () => {
       jsonRequest("/api/ask", guest.cookie, "POST", { connectionId: DEMO, question }),
     );
     expect(response.status).toBe(200);
-    return response.json();
+    const { result, failure } = await readAsk(response);
+    expect(failure).toBeNull();
+    return result!;
   };
 
   it("T3.1 counts customers per country with GROUP BY and correct results", async () => {
