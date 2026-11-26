@@ -47,6 +47,12 @@ export function providerConfig(): ProviderConfig {
     // Local models are for development only.
     ollamaBaseUrl: env.NODE_ENV === "production" ? undefined : env.OLLAMA_BASE_URL,
     ollamaModel: env.OLLAMA_MODEL,
+    // One line per refusal or timeout, so the server logs show why an answer was slow.
+    onModelError: (f) =>
+      console.warn(
+        `[askdb] model failed: ${f.provider}/${f.model} status=${f.status ?? "-"} ` +
+          `after ${f.ms} ms (${f.reason})`,
+      ),
   };
 }
 

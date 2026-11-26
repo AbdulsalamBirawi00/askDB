@@ -35,6 +35,28 @@ export type ProviderConfig = {
   /** Development only: a local Ollama server, e.g. http://localhost:11434/v1. */
   ollamaBaseUrl?: string;
   ollamaModel?: string;
+  /**
+   * How long one model may take before the next is tried (structured SQL), or may stay
+   * silent before its first word (summaries). Overloaded free models sometimes hang for
+   * a minute before refusing. Defaults: MODEL_TIMEOUT_MS / FIRST_TEXT_TIMEOUT_MS.
+   */
+  modelTimeoutMs?: number;
+  firstTextTimeoutMs?: number;
+  /** Told about every model that failed (for server logs). Never sees keys or prompts. */
+  onModelError?: (failure: ModelFailure) => void;
+};
+
+export const MODEL_TIMEOUT_MS = 25_000;
+export const FIRST_TEXT_TIMEOUT_MS = 15_000;
+
+/** One failed model call, for logs: which model, the HTTP status if any, and how long it took. */
+export type ModelFailure = {
+  provider: ProviderName;
+  model: string;
+  status?: number;
+  /** "timeout", or the error's name and the start of its message. */
+  reason: string;
+  ms: number;
 };
 
 export type ProviderName = "ollama" | "groq" | "google" | "zai" | "nvidia";
@@ -221,6 +243,34 @@ export function shouldFallBack(error: unknown): boolean {
   return [401, 403, 404, 408, 429].includes(status) || status >= 500;
 }
 
+/** The caller's signal plus a per-attempt time limit. */
+function attemptSignal(outer: AbortSignal | undefined, ms: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new ModelTimeoutError(ms)), ms);
+  const signal = outer ? AbortSignal.any([outer, controller.signal]) : controller.signal;
+  return {
+    signal,
+    timedOut: () => controller.signal.aborted,
+    clear: () => clearTimeout(timer),
+  };
+}
+
+/** A model took longer than its time limit; the next one is tried. */
+export class ModelTimeoutError extends Error {
+  constructor(ms: number) {
+    super(`No answer within ${ms} ms`);
+    this.name = "ModelTimeoutError";
+  }
+}
+
+function reasonOf(error: unknown, timedOut: boolean): string {
+  if (timedOut) return "timeout";
+  const inner = RetryError.isInstance(error) ? error.lastError : error;
+  return inner instanceof Error
+    ? `${inner.name}: ${inner.message.slice(0, 160)}`
+    : String(inner).slice(0, 160);
+}
+
 export type Generation<T> = {
   output: T;
   provider: ProviderName;
@@ -239,7 +289,10 @@ export async function generateWithFallback<S extends z.ZodType>(
   const candidates = configuredModels(config);
   if (candidates.length === 0) throw new NoProviderError();
   const causes: { provider: ProviderName; status?: number }[] = [];
+  const limit = config.modelTimeoutMs ?? MODEL_TIMEOUT_MS;
   for (const [index, candidate] of candidates.entries()) {
+    const started = Date.now();
+    const attempt = attemptSignal(request.abortSignal, limit);
     try {
       if (candidate.json === "prompt") {
         const result = await generateText({
@@ -248,7 +301,7 @@ export async function generateWithFallback<S extends z.ZodType>(
           prompt: request.prompt,
           temperature: 0,
           maxRetries: 0,
-          abortSignal: request.abortSignal,
+          abortSignal: attempt.signal,
         });
         return {
           output: parseJsonReply(result.text, request.schema),
@@ -264,7 +317,7 @@ export async function generateWithFallback<S extends z.ZodType>(
         output: Output.object({ schema: request.schema }),
         temperature: 0,
         maxRetries: 0,
-        abortSignal: request.abortSignal,
+        abortSignal: attempt.signal,
       });
       return {
         output: result.output as z.infer<S>,
@@ -273,12 +326,26 @@ export async function generateWithFallback<S extends z.ZodType>(
         tokens: result.usage.totalTokens ?? null,
       };
     } catch (error) {
-      causes.push({ provider: candidate.provider, status: statusOf(error) });
+      // The caller gave up (the user left): stop, do not try other models.
+      if (request.abortSignal?.aborted) throw error;
+      const timedOut = attempt.timedOut();
+      const status = statusOf(error);
+      causes.push({ provider: candidate.provider, status });
+      config.onModelError?.({
+        provider: candidate.provider,
+        model: candidate.model,
+        status,
+        reason: reasonOf(error, timedOut),
+        ms: Date.now() - started,
+      });
+      const fallBack = timedOut || shouldFallBack(error);
       const isLast = index === candidates.length - 1;
-      if (isLast || !shouldFallBack(error)) {
-        if (isLast && shouldFallBack(error)) throw new ProvidersFailedError(causes);
+      if (isLast || !fallBack) {
+        if (isLast && fallBack) throw new ProvidersFailedError(causes);
         throw error;
       }
+    } finally {
+      attempt.clear();
     }
   }
   throw new ProvidersFailedError(causes);
@@ -303,29 +370,51 @@ export async function* streamTextWithFallback(
   const candidates = configuredModels(config, request.order);
   if (candidates.length === 0) throw new NoProviderError();
   const causes: { provider: ProviderName; status?: number }[] = [];
+  const limit = config.firstTextTimeoutMs ?? FIRST_TEXT_TIMEOUT_MS;
   for (const candidate of candidates) {
+    const started = Date.now();
+    // The time limit covers the wait for the first word only; then the answer may take its time.
+    const attempt = attemptSignal(request.abortSignal, limit);
     const result = streamText({
       model: candidate.languageModel,
       instructions: request.instructions,
       prompt: request.prompt,
       temperature: 0,
       maxRetries: 0,
-      abortSignal: request.abortSignal,
+      abortSignal: attempt.signal,
     });
     let sent = false;
     let failure: unknown = null;
-    for await (const part of result.fullStream) {
-      if (part.type === "text-delta" && part.text) {
-        sent = true;
-        yield part.text;
-      } else if (part.type === "error") {
-        failure = part.error;
-        break;
+    try {
+      for await (const part of result.fullStream) {
+        if (part.type === "text-delta" && part.text) {
+          if (!sent) attempt.clear();
+          sent = true;
+          yield part.text;
+        } else if (part.type === "error") {
+          failure = part.error;
+          break;
+        }
       }
+    } catch (error) {
+      failure = error;
+    } finally {
+      attempt.clear();
     }
-    if (failure === null || sent) return;
-    causes.push({ provider: candidate.provider, status: statusOf(failure) });
-    if (!shouldFallBack(failure)) throw failure;
+    if (sent) return;
+    if (request.abortSignal?.aborted) return;
+    const timedOut = attempt.timedOut();
+    if (failure === null && !timedOut) return; // An empty answer: nothing to fall back for.
+    const status = statusOf(failure);
+    causes.push({ provider: candidate.provider, status });
+    config.onModelError?.({
+      provider: candidate.provider,
+      model: candidate.model,
+      status,
+      reason: reasonOf(failure, timedOut),
+      ms: Date.now() - started,
+    });
+    if (!timedOut && !shouldFallBack(failure)) throw failure;
   }
   throw new ProvidersFailedError(causes);
 }
