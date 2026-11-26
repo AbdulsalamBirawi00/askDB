@@ -11,11 +11,13 @@ import {
   DEFAULT_GOOGLE_MODEL,
   DEFAULT_NVIDIA_MODEL,
   generateWithFallback,
+  type ModelFailure,
   NoProviderError,
   parseJsonReply,
   ProvidersFailedError,
   sqlGenerationSchema,
   SQL_INSTRUCTIONS,
+  streamTextWithFallback,
   type AskTable,
   type SqlGeneration,
 } from "../src";
@@ -337,6 +339,103 @@ describe("provider fallback", () => {
     );
     expect(() => parseJsonReply("{not: valid}", sqlGenerationSchema)).toThrow();
     expect(() => parseJsonReply('{"sql": "select 1"}', sqlGenerationSchema)).toThrow();
+  });
+
+  it("moves to the next model when one hangs past its time limit, and reports it", async () => {
+    const failures: ModelFailure[] = [];
+    server.use(
+      http.post(GEMINI_URL, async () => {
+        await new Promise((r) => setTimeout(r, 2_000));
+        return geminiJson(answer);
+      }),
+      http.post(GEMINI_LITE_URL, () => geminiJson({ ...answer, sql: "select 2" })),
+    );
+    const started = Date.now();
+    const result = await generateWithFallback(
+      {
+        googleApiKey: "k",
+        modelTimeoutMs: 200,
+        onModelError: (f) => failures.push(f),
+      },
+      request,
+    );
+    expect(Date.now() - started).toBeLessThan(1_500);
+    expect(result).toMatchObject({ model: DEFAULT_GOOGLE_FALLBACK_MODEL });
+    expect(failures).toEqual([
+      expect.objectContaining({
+        provider: "google",
+        model: DEFAULT_GOOGLE_MODEL,
+        reason: "timeout",
+      }),
+    ]);
+  });
+
+  it("reports each refusing model with its status", async () => {
+    const failures: ModelFailure[] = [];
+    server.use(
+      http.post(GEMINI_URL, () => HttpResponse.json({ error: { code: 503 } }, { status: 503 })),
+      http.post(GEMINI_LITE_URL, () => geminiJson(answer)),
+    );
+    await generateWithFallback(
+      { googleApiKey: "k", onModelError: (f) => failures.push(f) },
+      request,
+    );
+    expect(failures).toEqual([
+      expect.objectContaining({ provider: "google", model: DEFAULT_GOOGLE_MODEL, status: 503 }),
+    ]);
+  });
+
+  it("does not try other models when the caller aborts", async () => {
+    const failures: ModelFailure[] = [];
+    server.use(
+      http.post(GEMINI_URL, async () => {
+        await new Promise((r) => setTimeout(r, 2_000));
+        return geminiJson(answer);
+      }),
+    );
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 100);
+    await expect(
+      generateWithFallback(
+        { googleApiKey: "k", onModelError: (f) => failures.push(f) },
+        { ...request, abortSignal: controller.signal },
+      ),
+    ).rejects.toThrow();
+    expect(calls).toEqual(["generativelanguage.googleapis.com"]);
+    expect(failures).toEqual([]);
+  });
+
+  it("moves a summary to the next model when the first stays silent too long", async () => {
+    const failures: ModelFailure[] = [];
+    const sse = (text: string) =>
+      new HttpResponse(
+        `data: ${JSON.stringify({
+          candidates: [{ content: { role: "model", parts: [{ text }] }, finishReason: "STOP" }],
+        })}\n\n`,
+        { headers: { "content-type": "text/event-stream" } },
+      );
+    const stream = (model: string) =>
+      new RegExp(
+        `^https://generativelanguage\\.googleapis\\.com/v1beta/models/${model.replaceAll(".", "\\.")}:streamGenerateContent`,
+      );
+    server.use(
+      http.post(stream(DEFAULT_GOOGLE_FALLBACK_MODEL), async () => {
+        await new Promise((r) => setTimeout(r, 2_000));
+        return sse("too late");
+      }),
+      http.post(stream(DEFAULT_GEMMA_MODEL), () => sse("Gemma answered.")),
+    );
+    let text = "";
+    for await (const part of streamTextWithFallback(
+      { googleApiKey: "k", firstTextTimeoutMs: 200, onModelError: (f) => failures.push(f) },
+      { instructions: "Summarize.", prompt: "rows", order: "cheap" },
+    )) {
+      text += part;
+    }
+    expect(text).toBe("Gemma answered.");
+    expect(failures).toEqual([
+      expect.objectContaining({ model: DEFAULT_GOOGLE_FALLBACK_MODEL, reason: "timeout" }),
+    ]);
   });
 
   it("fails clearly when no provider is configured", async () => {
