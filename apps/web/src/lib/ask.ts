@@ -328,6 +328,6 @@ export async function runEditedSql(
   };
 }
 
-function chartTypeOf(value: string | null): ChartType | undefined {
+export function chartTypeOf(value: string | null): ChartType | undefined {
   return CHART_TYPES.find((type) => type === value);
 }

@@ -256,10 +256,12 @@ export async function getOwnedQuery(
   question: string;
   sql: string | null;
   chartType: string | null;
+  status: QueryStatus;
 } | null> {
   const [row] = await db
     .select({
       id: queries.id,
+      status: queries.status,
       conversationId: queries.conversationId,
       connectionId: conversations.connectionId,
       question: queries.question,

@@ -8,6 +8,7 @@ import { RatingButtons, type Rating } from "@/components/ask/rating";
 import { NumberCard } from "@/components/ask/result-chart";
 import { ResultTable } from "@/components/ask/result-table";
 import { SqlPanel } from "@/components/ask/sql-panel";
+import { PinButton } from "@/components/dashboard/pin-button";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n/dictionaries";
@@ -130,6 +131,8 @@ export function TurnView({
   const status = turn.live?.answer?.status ?? turn.saved?.status ?? null;
   const rateable = turn.queryId !== null && status !== null && status !== "clarification";
   const edited = turn.live?.answer?.edited ?? turn.saved?.edited ?? false;
+  // Only a query that ran can become a dashboard card.
+  const pinnable = turn.queryId !== null && status === "ok";
 
   return (
     <article className="flex min-w-0 flex-col gap-4" data-testid="turn">
@@ -161,7 +164,7 @@ export function TurnView({
         />
       )}
 
-      {(edited || rateable) && (
+      {(edited || rateable || pinnable) && (
         <div className="flex flex-wrap items-center justify-between gap-2">
           {edited ? (
             <p className="text-xs text-muted-foreground" data-testid="edited-note">
@@ -170,9 +173,18 @@ export function TurnView({
           ) : (
             <span />
           )}
-          {rateable && (
-            <RatingButtons value={turn.rating} onChange={(r) => onRate(turn, r)} labels={labels} />
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {pinnable && turn.queryId && (
+              <PinButton queryId={turn.queryId} lang={lang} labels={labels} />
+            )}
+            {rateable && (
+              <RatingButtons
+                value={turn.rating}
+                onChange={(r) => onRate(turn, r)}
+                labels={labels}
+              />
+            )}
+          </div>
         </div>
       )}
     </article>

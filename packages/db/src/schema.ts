@@ -216,3 +216,57 @@ export const queries = pgTable(
   },
   (t) => [index("queries_conversation_id_idx").on(t.conversationId)],
 );
+
+/** A user's dashboard of pinned results. `shareToken` set = a read-only public link. */
+export const dashboards = pgTable(
+  "dashboards",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    /** Long random token for the read-only share link; null = not shared. */
+    shareToken: text("share_token").unique(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("dashboards_user_id_idx").on(t.userId)],
+);
+
+/** One card: the SQL and chart type to re-run, never the data. */
+export const dashboardItems = pgTable(
+  "dashboard_items",
+  {
+    id: text("id").primaryKey(),
+    dashboardId: text("dashboard_id")
+      .notNull()
+      .references(() => dashboards.id, { onDelete: "cascade" }),
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => connections.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    sql: text("sql").notNull(),
+    chartType: text("chart_type"),
+    position: integer("position").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("dashboard_items_dashboard_id_idx").on(t.dashboardId)],
+);
+
+/**
+ * Last result of a SQL on a connection, keyed by sha256(connection id + "\n" + SQL).
+ * Fresh until `expires_at` (5 minutes); share links read it even when stale.
+ */
+export const queryCache = pgTable(
+  "query_cache",
+  {
+    key: text("key").primaryKey(),
+    connectionId: text("connection_id")
+      .notNull()
+      .references(() => connections.id, { onDelete: "cascade" }),
+    resultJson: jsonb("result_json").notNull(),
+    cachedAt: timestamp("cached_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("query_cache_connection_id_idx").on(t.connectionId)],
+);

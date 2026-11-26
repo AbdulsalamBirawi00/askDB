@@ -90,6 +90,9 @@ describe("GET /api/cron/cleanup-guests", () => {
   it("runs the cleanup with the right secret", async () => {
     const response = await call(`Bearer ${"s".repeat(24)}`);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ deleted: expect.any(Number) });
+    expect(await response.json()).toEqual({
+      deleted: expect.any(Number),
+      purgedCache: expect.any(Number),
+    });
   });
 });

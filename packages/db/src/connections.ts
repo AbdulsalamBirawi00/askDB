@@ -5,6 +5,7 @@ import { and, asc, desc, eq, exists, inArray, notInArray, or, sql } from "drizzl
 import type { Database } from "./index";
 import {
   connections,
+  queryCache,
   schemaColumns,
   schemaTables,
   type ColumnReference,
@@ -282,6 +283,8 @@ export async function refreshConnectionSchema(
         .where(eq(connections.id, input.id));
     }
     await mergeInspection(tx, input.id, input.inspection);
+    // The schema (or the database itself) may have changed: cached results are stale.
+    await tx.delete(queryCache).where(eq(queryCache.connectionId, input.id));
     return true;
   });
 }
@@ -390,6 +393,10 @@ export async function updateSchemaTable(
       ),
     )
     .returning({ id: schemaTables.id });
+  // Cached dashboard results may hold a column that is hidden now.
+  if (rows.length > 0 && "hidden" in input.patch) {
+    await db.delete(queryCache).where(eq(queryCache.connectionId, input.connectionId));
+  }
   return rows.length > 0;
 }
 
@@ -415,5 +422,9 @@ export async function updateSchemaColumn(
       ),
     )
     .returning({ id: schemaColumns.id });
+  // Cached dashboard results may hold a column that is hidden now.
+  if (rows.length > 0 && "hidden" in input.patch) {
+    await db.delete(queryCache).where(eq(queryCache.connectionId, input.connectionId));
+  }
   return rows.length > 0;
 }
