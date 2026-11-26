@@ -23,6 +23,9 @@ export default async function AppLayout({ children, params }: LayoutProps<"/[lan
           <Link href={`/${lang}/app`} className={linkClass}>
             {app.nav.dashboard}
           </Link>
+          <Link href={`/${lang}/app/dashboards`} className={linkClass}>
+            {app.nav.dashboards}
+          </Link>
           <Link href={`/${lang}/app/profile`} className={linkClass}>
             {app.nav.profile}
           </Link>

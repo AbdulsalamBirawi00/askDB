@@ -55,6 +55,39 @@ export {
   type QueryStatus,
   type QueryView,
 } from "./queries";
-export { DEMO_OWNER_ID, ensureDemoOwner } from "./demo";
+export {
+  createDemoDashboard,
+  DEMO_CONNECTION_ID,
+  DEMO_DASHBOARD_CARDS,
+  DEMO_OWNER_ID,
+  ensureDemoOwner,
+} from "./demo";
+export {
+  addDashboardItem,
+  CACHE_TTL_MS,
+  cacheKey,
+  clearConnectionCache,
+  createDashboard,
+  DashboardLimitError,
+  deleteDashboard,
+  deleteDashboardItem,
+  getCachedResults,
+  getOwnedDashboard,
+  getSharedDashboard,
+  listDashboards,
+  MAX_DASHBOARD_ITEMS,
+  MAX_DASHBOARDS,
+  newShareToken,
+  purgeQueryCache,
+  putCachedResults,
+  renameDashboard,
+  renameDashboardItem,
+  reorderDashboardItems,
+  setShareToken,
+  type CachedResult,
+  type DashboardItemView,
+  type DashboardSummary,
+  type DashboardView,
+} from "./dashboards";
 // Query operators from the same drizzle-orm copy as the schema (apps must not import a second one).
 export { and, eq, inArray, lt, sql } from "drizzle-orm";

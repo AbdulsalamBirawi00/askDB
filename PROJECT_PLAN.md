@@ -692,7 +692,7 @@ POST /v1/providers
 - [x] Stage 3 — SQL generation and safe execution (done 2026-11-24: T3.2–T3.8, T3.10, T3.13, T3.14 automated in CI; T3.1, T3.9, T3.11, T3.12 pass against real Gemini via `test:model`; eval 10/10; PR #8. Gemini only (no Groq), with a gemini-3.5-flash-lite fallback, PR #9)
 - [x] Stage 4 — Results, charts, and auto-repair (done 2026-11-25: T4.1–T4.10 automated in CI — T4.4–T4.6 as engine unit tests, T4.5–T4.7 and T4.10 also against `/api/ask`, T4.1–T4.3 and T4.6–T4.10 in Playwright; 5 real Gemini questions in English and Arabic each got the right chart and a summary. `/api/ask` now streams NDJSON)
 - [x] Stage 5 — History and follow-up questions (done 2026-11-26: T5.1–T5.8 automated in CI — T5.1, T5.2 and T5.7 against the API, T5.3 as a unit test, T5.4–T5.8 in Playwright; real-model follow-ups passed at least 4 of 5 cases via `test:model`; PR #13. More free models (Gemma, Z.ai GLM, NVIDIA) and per-model time limits with failure logs, PR #14)
-- [ ] Stage 6 — Saved dashboards
+- [x] Stage 6 — Saved dashboards (done 2026-11-26: T6.1–T6.9 automated in CI — T6.2, T6.3, T6.7 and API versions of T6.1, T6.5, T6.6, T6.8 against the routes, T6.1, T6.4–T6.6, T6.8, T6.9 in Playwright; cards re-run through the guard with zero model calls, 5-minute `query_cache`, dnd-kit reorder, read-only share links that only read the cache. Migration 0005)
 - [ ] Stage 7 — Evals and rate limits
 - [ ] Stage 8 — Deployment, docs, and showcase
 - [ ] Stage 9 — Extract the engine and build a public API

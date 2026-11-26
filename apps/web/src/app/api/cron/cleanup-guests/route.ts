@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 
-import { deleteStaleGuests } from "@askdb/db";
+import { deleteStaleGuests, purgeQueryCache } from "@askdb/db";
 
 import { getEnv } from "@/env";
 import { jsonError } from "@/lib/api";
@@ -15,9 +15,13 @@ function authorized(request: Request): boolean {
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
-/** Daily Vercel Cron job: deletes guest accounts older than 7 days, with all their data. */
+/**
+ * Daily Vercel Cron job: deletes guest accounts older than 7 days, with all their data,
+ * then cached results that expired over a day ago and no dashboard card uses.
+ */
 export async function GET(request: Request) {
   if (!authorized(request)) return jsonError(401, "Unauthorized");
   const deleted = await deleteStaleGuests(getDb());
-  return Response.json({ deleted });
+  const purgedCache = await purgeQueryCache(getDb());
+  return Response.json({ deleted, purgedCache });
 }

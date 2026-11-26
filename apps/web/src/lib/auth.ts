@@ -1,6 +1,6 @@
 import "server-only";
 
-import { schema } from "@askdb/db";
+import { createDemoDashboard, schema } from "@askdb/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
@@ -49,6 +49,13 @@ function createAuth() {
               role: (user as { isAnonymous?: boolean }).isAnonymous ? "demo" : "user",
             },
           }),
+          // A new guest finds a ready-made Northwind dashboard. Best effort: sign-in never fails on it.
+          after: async (user) => {
+            if (!(user as { isAnonymous?: boolean }).isAnonymous) return;
+            await createDemoDashboard(getDb(), user.id).catch((error: unknown) => {
+              console.error("demo dashboard failed", error);
+            });
+          },
         },
       },
     },
